@@ -1,0 +1,10 @@
+// Shared settings. Local secrets and signing live in gitignored files.
+#include "Version.xcconfig"
+
+CODE_SIGN_IDENTITY = -
+KNOCK_RELAY_URL = http:/$()/127.0.0.1:8787
+SPARKLE_FEED_URL = https:/$()/github.com/idestis/knock/releases/latest/download/appcast.xml
+SPARKLE_PUBLIC_KEY =
+
+#include? "Signing.xcconfig"
+#include? "Local.xcconfig"

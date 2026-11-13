@@ -1,0 +1,136 @@
+import AppKit
+import AuthenticationServices
+import CryptoKit
+import Foundation
+import os
+
+/// Body of POST /v1/auth/token and /v1/auth/refresh; also the Keychain value.
+struct StoredSession: Codable, Sendable {
+    var accessToken: String
+    var refreshToken: String
+    var expiresAt: Int64
+    var refreshExpiresAt: Int64
+    var user: Identity
+
+    var accessValid: Bool { Date().timeIntervalSince1970 < Double(expiresAt) - 300 }
+    var refreshValid: Bool { Date().timeIntervalSince1970 < Double(refreshExpiresAt) - 60 }
+}
+
+enum AuthError: LocalizedError {
+    case cancelled, failed(String), expired
+
+    var errorDescription: String? {
+        switch self {
+        case .cancelled: "Sign-in was cancelled."
+        case .failed(let m): m
+        case .expired: "Your sign-in expired. Sign in again."
+        }
+    }
+}
+
+/// Optional sign-in with Google or GitHub, brokered by the relay.
+/// The refresh token (90 days, sliding) lives in the Keychain, so people
+/// stay signed in across launches and days.
+@MainActor
+final class AuthService: NSObject {
+    private static let account = "session"
+    private let log = Logger(subsystem: "io.github.idestis.knock", category: "auth")
+    private(set) var session: StoredSession?
+    private var webSession: ASWebAuthenticationSession?
+
+    override init() {
+        super.init()
+        if let d = Keychain.read(Self.account) {
+            session = try? Wire.decoder.decode(StoredSession.self, from: d)
+            if let s = session, !s.refreshValid { signOut() }
+        }
+    }
+
+    var user: Identity? { session?.user }
+
+    func signOut() {
+        session = nil
+        Keychain.delete(Self.account)
+    }
+
+    /// A valid access token, refreshing when needed. nil means anonymous.
+    func accessToken(relay: URL) async throws -> String? {
+        guard let s = session else { return nil }
+        if s.accessValid { return s.accessToken }
+        guard s.refreshValid else {
+            signOut()
+            throw AuthError.expired
+        }
+        do {
+            let fresh: StoredSession = try await post(relay.appending(path: "v1/auth/refresh"), ["refresh_token": s.refreshToken])
+            store(fresh)
+            return fresh.accessToken
+        } catch AuthError.expired {
+            signOut()
+            throw AuthError.expired
+        }
+    }
+
+    func providers(relay: URL) async -> [String] {
+        struct P: Decodable { var providers: [String] }
+        guard let (d, _) = try? await URLSession.shared.data(from: relay.appending(path: "v1/auth/providers")),
+              let p = try? JSONDecoder().decode(P.self, from: d) else { return [] }
+        return p.providers
+    }
+
+    func signIn(provider: String, relay: URL) async throws -> Identity {
+        let verifier = Codes.base64URL(Codes.randomBytes(32))
+        let challenge = Codes.base64URL(Data(SHA256.hash(data: Data(verifier.utf8))))
+        let state = Codes.base64URL(Codes.randomBytes(16))
+        var c = URLComponents(url: relay.appending(path: "v1/auth/\(provider)/start"), resolvingAgainstBaseURL: false)!
+        c.queryItems = [.init(name: "redirect_uri", value: "knock://auth/callback"), .init(name: "state", value: state),
+                        .init(name: "code_challenge", value: challenge)]
+
+        let callback: URL = try await withCheckedThrowingContinuation { cont in
+            let ws = ASWebAuthenticationSession(url: c.url!, callback: .customScheme("knock")) { url, error in
+                if let url { cont.resume(returning: url) } else {
+                    let cancelled = (error as? ASWebAuthenticationSessionError)?.code == .canceledLogin
+                    cont.resume(throwing: cancelled ? AuthError.cancelled : AuthError.failed(error?.localizedDescription ?? "Sign-in failed."))
+                }
+            }
+            ws.presentationContextProvider = self
+            ws.prefersEphemeralWebBrowserSession = false
+            webSession = ws
+            ws.start()
+        }
+        webSession = nil
+        let items = URLComponents(url: callback, resolvingAgainstBaseURL: false)?.queryItems ?? []
+        func q(_ n: String) -> String? { items.first { $0.name == n }?.value }
+        guard q("state") == state else { throw AuthError.failed("Sign-in response did not match. Try again.") }
+        if let e = q("error") { throw AuthError.failed(q("error_description") ?? e) }
+        guard let code = q("code") else { throw AuthError.failed("No sign-in code came back.") }
+
+        let s: StoredSession = try await post(relay.appending(path: "v1/auth/token"), ["code": code, "code_verifier": verifier])
+        store(s)
+        log.info("signed in with \(provider, privacy: .public)")
+        return s.user
+    }
+
+    private func store(_ s: StoredSession) {
+        session = s
+        if let d = try? Wire.encoder.encode(s) { Keychain.save(Self.account, d) }
+    }
+
+    private func post<T: Decodable>(_ url: URL, _ body: [String: String]) async throws -> T {
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (d, resp) = try await URLSession.shared.data(for: req)
+        let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
+        if code == 401 || code == 400 { throw AuthError.expired }
+        guard code == 200 else { throw AuthError.failed("The relay answered \(code).") }
+        return try Wire.decoder.decode(T.self, from: d)
+    }
+}
+
+extension AuthService: ASWebAuthenticationPresentationContextProviding {
+    nonisolated func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
+        MainActor.assumeIsolated { NSApp.keyWindow ?? NSApp.windows.first { $0.isVisible } ?? NSWindow() }
+    }
+}
