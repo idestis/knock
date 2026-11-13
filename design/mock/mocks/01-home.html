@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Knock: home</title>
+<style>
+body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#dfe3ea}
+.frame{width:820px;height:560px;border-radius:26px;box-shadow:0 30px 80px rgba(15,23,42,0.28),0 0 0 1px rgba(0,0,0,0.08)}
+</style>
+</head>
+<body>
+<div class="frame">
+<div style="width: 820px; height: 560px; box-sizing: border-box; padding: 10px; display: flex; gap: 10px; border-radius: 26px; overflow: hidden; background: radial-gradient(560px 460px at 0% 0%, rgba(0,67,243,0.18), rgba(0,67,243,0) 70%), #f3f4f7; color: #1d1d1f; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', 'Helvetica Neue', system-ui, sans-serif; font-size: 13px; line-height: 18px">
+
+<aside style="width: 272px; flex-shrink: 0; box-sizing: border-box; padding: 14px 16px; display: flex; flex-direction: column; gap: 18px; border-radius: 18px; background: rgba(255,255,255,0.62); backdrop-filter: blur(28px) saturate(170%); -webkit-backdrop-filter: blur(28px) saturate(170%); border: 1px solid rgba(255,255,255,0.85); box-shadow: 0 10px 30px rgba(15,23,42,0.10), inset 0 1px 0 rgba(255,255,255,0.9)">
+
+<div aria-hidden="true" style="display: flex; gap: 8px; align-items: center; height: 12px">
+<span style="width: 12px; height: 12px; border-radius: 100px; background: #ff5f57"></span>
+<span style="width: 12px; height: 12px; border-radius: 100px; background: #febc2e"></span>
+<span style="width: 12px; height: 12px; border-radius: 100px; background: #28c840"></span>
+</div>
+
+<div style="display: flex; align-items: center; gap: 12px">
+<div style="width: 44px; height: 44px; flex-shrink: 0; border-radius: 12px; background: #ffffff; box-shadow: 0 1px 3px rgba(15,23,42,0.18); display: flex; align-items: center; justify-content: center">
+<img src="../assets/knock-k.png" alt="" style="width: 30px; height: 30px; display: block">
+</div>
+<div style="display: flex; flex-direction: column">
+<h1 style="margin: 0; font-size: 17px; line-height: 22px; font-weight: 600; letter-spacing: -0.01em">Knock</h1>
+<p style="margin: 0; font-size: 12px; line-height: 16px; color: #4a4a50">Knock, knock. Who’s there?</p>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 6px">
+<button type="button" role="switch" aria-checked="true" style="height: 44px; padding: 0; border: 0; background: transparent; color: inherit; font-family: inherit; font-size: 13px; line-height: 18px; font-weight: 600; display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer; text-align: left">
+<span>Open to knocks</span>
+<span aria-hidden="true" style="width: 40px; height: 24px; flex-shrink: 0; box-sizing: border-box; padding: 2px; border-radius: 100px; background: #0043f3; display: flex; justify-content: flex-end">
+<span style="width: 20px; height: 20px; border-radius: 100px; background: #ffffff; box-shadow: 0 1px 3px rgba(0,0,0,0.25)"></span>
+</span>
+</button>
+<p style="margin: 0; font-size: 12px; line-height: 16px; color: #4a4a50">People with your code can knock. You choose who comes in.</p>
+</div>
+
+<div aria-hidden="true" style="height: 1px; background: rgba(0,0,0,0.08)"></div>
+
+<div style="display: flex; flex-direction: column; gap: 4px">
+<span style="font-size: 12px; line-height: 16px; color: #4a4a50">Your code</span>
+<div style="display: flex; align-items: center; gap: 6px">
+<button type="button" id="copy-code" title="Click to copy" style="height: 44px; margin-left: -8px; padding: 0 8px; border: 0; border-radius: 12px; background: transparent; color: #1d1d1f; font-family: inherit; font-size: 30px; line-height: 36px; font-weight: 700; letter-spacing: 0.02em; font-variant-numeric: tabular-nums; white-space: nowrap; cursor: pointer">4821 KQ</button>
+<button type="button" aria-label="New code" title="New code" style="width: 40px; height: 40px; flex-shrink: 0; padding: 0; border: 1px solid rgba(0,0,0,0.06); border-radius: 100px; background: rgba(255,255,255,0.8); box-shadow: 0 1px 2px rgba(15,23,42,0.08), inset 0 1px 0 rgba(255,255,255,0.9); color: #1d1d1f; display: flex; align-items: center; justify-content: center; cursor: pointer">
+<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><path d="M8 16H3v5"></path></svg>
+</button>
+</div>
+<p style="margin: 0; font-size: 12px; line-height: 16px; color: #4a4a50">Click the code to copy it. A new code stops the old one working straight away.</p>
+</div>
+
+<div style="margin-top: auto; display: flex; align-items: center; gap: 10px">
+<span aria-hidden="true" style="width: 30px; height: 30px; flex-shrink: 0; border-radius: 100px; background: #dfe4f5; color: #0043f3; font-size: 11px; line-height: 14px; font-weight: 600; display: flex; align-items: center; justify-content: center">MP</span>
+<div style="display: flex; flex-direction: column; min-width: 0">
+<span style="font-weight: 600">Maya Patel</span>
+<span style="font-size: 12px; line-height: 16px; color: #4a4a50">maya-mbp</span>
+</div>
+</div>
+
+</aside>
+
+<main style="flex: 1; min-width: 0; box-sizing: border-box; padding: 6px 8px 6px 6px; display: flex; flex-direction: column; gap: 14px">
+
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; height: 44px">
+<h2 style="margin: 0; font-size: 20px; line-height: 24px; font-weight: 700; letter-spacing: -0.01em">Recent</h2>
+<div style="width: 250px; height: 36px; box-sizing: border-box; padding: 0 12px; display: flex; align-items: center; gap: 8px; border-radius: 100px; background: rgba(255,255,255,0.8); border: 1px solid rgba(0,0,0,0.08); box-shadow: 0 1px 2px rgba(15,23,42,0.06), inset 0 1px 0 rgba(255,255,255,0.9)">
+<svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#4a4a50" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+<label for="find" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%)">Enter a code or search recent sessions</label>
+<input id="find" type="text" placeholder="Enter a code or search recent" style="flex: 1; min-width: 0; height: 32px; padding: 0; border: 0; outline: 0; background: transparent; color: #1d1d1f; font-family: inherit; font-size: 13px; line-height: 18px">
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; padding: 0 14px; border-radius: 16px; background: #ffffff; border: 1px solid rgba(0,0,0,0.06); box-shadow: 0 1px 2px rgba(15,23,42,0.04)">
+
+<div style="height: 64px; display: flex; align-items: center; gap: 12px">
+<span aria-hidden="true" style="width: 36px; height: 36px; flex-shrink: 0; border-radius: 100px; background: #e6e8ef; color: #3a3a40; font-size: 12px; line-height: 16px; font-weight: 600; display: flex; align-items: center; justify-content: center">SC</span>
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+<span style="font-weight: 600">Sam Carter</span>
+<span style="display: flex; align-items: center; gap: 6px; font-size: 12px; line-height: 16px; color: #4a4a50"><span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 100px; background: #1f9d4d"></span><span>Online · sam-mbp</span></span>
+</div>
+<button type="button" aria-label="Knock on Sam Carter" style="height: 40px; padding: 0 18px; border: 0; border-radius: 100px; background: rgba(0,67,243,0.10); color: #0043f3; font-family: inherit; font-size: 13px; line-height: 18px; font-weight: 600; cursor: pointer">Knock</button>
+</div>
+
+<div style="height: 64px; display: flex; align-items: center; gap: 12px; border-top: 1px solid rgba(0,0,0,0.07)">
+<span aria-hidden="true" style="width: 36px; height: 36px; flex-shrink: 0; border-radius: 100px; background: #e6e8ef; color: #3a3a40; font-size: 12px; line-height: 16px; font-weight: 600; display: flex; align-items: center; justify-content: center">PN</span>
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+<span style="font-weight: 600">Priya Nair</span>
+<span style="display: flex; align-items: center; gap: 6px; font-size: 12px; line-height: 16px; color: #4a4a50"><span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 100px; background: #c2620a"></span><span>Code changed · priya-mbp</span></span>
+</div>
+<span style="padding: 0 4px; font-size: 12px; line-height: 16px; color: #4a4a50">Ask for a new code</span>
+</div>
+
+<div style="height: 64px; display: flex; align-items: center; gap: 12px; border-top: 1px solid rgba(0,0,0,0.07)">
+<span aria-hidden="true" style="width: 36px; height: 36px; flex-shrink: 0; border-radius: 100px; background: #e6e8ef; color: #3a3a40; font-size: 12px; line-height: 16px; font-weight: 600; display: flex; align-items: center; justify-content: center">TR</span>
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+<span style="font-weight: 600">Tom Reed</span>
+<span style="display: flex; align-items: center; gap: 6px; font-size: 12px; line-height: 16px; color: #4a4a50"><span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 100px; background: #c2620a"></span><span>In a session · tom-mbp</span></span>
+</div>
+<span style="padding: 0 18px; font-size: 12px; line-height: 16px; color: #4a4a50">Busy</span>
+</div>
+
+<div style="height: 64px; display: flex; align-items: center; gap: 12px; border-top: 1px solid rgba(0,0,0,0.07)">
+<span aria-hidden="true" style="width: 36px; height: 36px; flex-shrink: 0; border-radius: 100px; background: #e6e8ef; color: #3a3a40; font-size: 12px; line-height: 16px; font-weight: 600; display: flex; align-items: center; justify-content: center">EK</span>
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+<span style="font-weight: 600">Elif Kaya</span>
+<span style="display: flex; align-items: center; gap: 6px; font-size: 12px; line-height: 16px; color: #4a4a50"><span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 100px; background: #8e8e93"></span><span>Offline · elif-mbp</span></span>
+</div>
+</div>
+
+</div>
+
+<div style="margin-top: auto; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 0 6px 4px 6px; font-size: 12px; line-height: 16px; color: #4a4a50">
+<span>Quit Knock and nobody can knock.</span>
+<span style="display: flex; align-items: center; gap: 6px"><span aria-hidden="true" style="width: 6px; height: 6px; border-radius: 100px; background: #1f9d4d"></span><span>Connected</span></span>
+</div>
+
+</main>
+
+</div>
+</div>
+<script>document.getElementById('copy-code').addEventListener('click',function(e){if(navigator.clipboard){navigator.clipboard.writeText(e.currentTarget.textContent.trim())}});</script>
+</body>
+</html>

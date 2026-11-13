@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Knock: the CLI</title>
+<style>
+body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#c9ced8}
+.frame{width:900px;height:560px;border-radius:26px;box-shadow:0 30px 80px rgba(15,23,42,0.28),0 0 0 1px rgba(0,0,0,0.08)}
+</style>
+</head>
+<body>
+<div class="frame">
+<div style="width: 900px; height: 560px; box-sizing: border-box; display: flex; flex-direction: column; border-radius: 26px; overflow: hidden; background: #15161a; color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', 'Helvetica Neue', system-ui, sans-serif; font-size: 13px; line-height: 18px">
+
+<header style="padding: 18px 20px 14px 20px; display: flex; align-items: center; gap: 16px">
+<div aria-hidden="true" style="display: flex; gap: 8px; align-items: center">
+<span style="width: 12px; height: 12px; border-radius: 100px; background: #ff5f57"></span>
+<span style="width: 12px; height: 12px; border-radius: 100px; background: #febc2e"></span>
+<span style="width: 12px; height: 12px; border-radius: 100px; background: #28c840"></span>
+</div>
+<span style="font-weight: 600; color: #c7c9d1">Terminal</span>
+</header>
+
+<main style="flex: 1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; background: rgba(255,255,255,0.12); border-top: 1px solid rgba(255,255,255,0.12); border-bottom: 1px solid rgba(255,255,255,0.12)">
+
+<section style="background: #15161a; padding: 16px 20px; display: flex; flex-direction: column; gap: 14px">
+<h2 style="margin: 0; align-self: flex-start; padding: 5px 12px; border-radius: 100px; background: #0043f3; font-size: 12px; line-height: 16px; font-weight: 600">Helper: knock on a door</h2>
+<div style="display: flex; flex-direction: column; font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 13px; line-height: 22px; color: #c7c9d1; white-space: pre">
+<div><span style="color: #8ab4ff">sam@sam-mbp ~ %</span> <span style="color: #ffffff">knock recent</span></div>
+<div>maya    online   code ok</div>
+<div>priya   online   code changed</div>
+<div>tom     busy     code ok</div>
+<div> </div>
+<div><span style="color: #8ab4ff">sam@sam-mbp ~ %</span> <span style="color: #ffffff">knock maya</span></div>
+<div>Knocking on Maya Patel…</div>
+<div style="color: #5fd38d">Maya let you in. Ctrl-D to leave.</div>
+<div> </div>
+<div style="display: flex; align-items: center; gap: 8px"><span style="color: #8ab4ff">maya@maya-mbp ~ %</span><span aria-hidden="true" style="width: 8px; height: 16px; background: #8ab4ff"></span></div>
+</div>
+</section>
+
+<section style="background: #15161a; padding: 16px 20px; display: flex; flex-direction: column; gap: 14px">
+<h2 style="margin: 0; align-self: flex-start; padding: 5px 12px; border-radius: 100px; background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.16); font-size: 12px; line-height: 16px; font-weight: 600">Host: open your door</h2>
+<div style="display: flex; flex-direction: column; font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 13px; line-height: 22px; color: #c7c9d1; white-space: pre">
+<div><span style="color: #8ab4ff">maya@maya-mbp ~ %</span> <span style="color: #ffffff">knock open</span></div>
+<div>Signed in as Maya Patel.</div>
+<div>Your door is open. Ctrl-C to close it.</div>
+<div> </div>
+<div style="color: #8ab4ff">Knock, knock: Sam Carter on sam-mbp</div>
+<div>Let Sam in? [y/N] <span style="color: #ffffff">y</span></div>
+<div> </div>
+<div style="color: #5fd38d">Sam is in. This shell is now shared.</div>
+</div>
+</section>
+
+</main>
+
+<footer style="padding: 14px 20px 16px 20px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12px; line-height: 16px; color: #a9acb6">
+<span>Three commands:</span>
+<code style="padding: 5px 10px; border-radius: 8px; background: rgba(255,255,255,0.10); color: #ffffff; font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 12px">knock recent</code>
+<code style="padding: 5px 10px; border-radius: 8px; background: rgba(255,255,255,0.10); color: #ffffff; font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 12px">knock &lt;door&gt; [code]</code>
+<code style="padding: 5px 10px; border-radius: 8px; background: rgba(255,255,255,0.10); color: #ffffff; font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 12px">knock open</code>
+</footer>
+
+</div>
+</div>
+
+</body>
+</html>

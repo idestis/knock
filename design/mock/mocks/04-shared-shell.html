@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Knock: shared shell</title>
+<style>
+body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#c9ced8}
+.frame{width:900px;height:560px;border-radius:26px;box-shadow:0 30px 80px rgba(15,23,42,0.28),0 0 0 1px rgba(0,0,0,0.08)}
+</style>
+</head>
+<body>
+<div class="frame">
+<div style="width: 900px; height: 560px; box-sizing: border-box; padding: 10px; display: flex; flex-direction: column; border-radius: 26px; overflow: hidden; background: radial-gradient(620px 300px at 20% 0%, rgba(0,67,243,0.30), rgba(0,67,243,0) 70%), #15161a; color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', 'Helvetica Neue', system-ui, sans-serif; font-size: 13px; line-height: 18px">
+
+<header style="display: flex; align-items: center; gap: 16px; padding: 0 0 0 10px">
+<div aria-hidden="true" style="display: flex; gap: 8px; align-items: center">
+<span style="width: 12px; height: 12px; border-radius: 100px; background: #ff5f57"></span>
+<span style="width: 12px; height: 12px; border-radius: 100px; background: #febc2e"></span>
+<span style="width: 12px; height: 12px; border-radius: 100px; background: #28c840"></span>
+</div>
+<div style="height: 44px; box-sizing: border-box; padding: 0 16px 0 6px; display: flex; align-items: center; gap: 10px; border-radius: 100px; background: rgba(255,255,255,0.10); backdrop-filter: blur(24px) saturate(160%); -webkit-backdrop-filter: blur(24px) saturate(160%); border: 1px solid rgba(255,255,255,0.16); box-shadow: inset 0 1px 0 rgba(255,255,255,0.18)">
+<span aria-hidden="true" style="width: 32px; height: 32px; border-radius: 100px; background: #0043f3; font-size: 12px; line-height: 16px; font-weight: 600; display: flex; align-items: center; justify-content: center">SC</span>
+<h1 style="margin: 0; font-size: 13px; line-height: 18px; font-weight: 600">Sam Carter is in your shell</h1>
+<span aria-hidden="true" style="width: 1px; height: 16px; background: rgba(255,255,255,0.22)"></span>
+<span style="color: #c7c9d1; font-variant-numeric: tabular-nums">04:12</span>
+</div>
+<div style="flex: 1"></div>
+<button type="button" style="height: 44px; padding: 0 20px; border: 0; border-radius: 100px; background: #d70015; box-shadow: inset 0 1px 0 rgba(255,255,255,0.25); color: #ffffff; font-family: inherit; font-size: 13px; line-height: 18px; font-weight: 600; cursor: pointer">End session</button>
+</header>
+
+<main style="flex: 1; padding: 24px 14px; display: flex; flex-direction: column; font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 13px; line-height: 24px; color: #c7c9d1">
+<div><span style="color: #8ab4ff">maya@maya-mbp ~ %</span> <span style="color: #ffffff">whoami</span></div>
+<div>maya</div>
+<div><span style="color: #8ab4ff">maya@maya-mbp ~ %</span> <span style="color: #ffffff">brew update</span></div>
+<div>Already up-to-date.</div>
+<div style="display: flex; align-items: center; gap: 8px"><span style="color: #8ab4ff">maya@maya-mbp ~ %</span><span style="color: #ffffff">brew install jq</span><span aria-hidden="true" style="width: 8px; height: 17px; background: #8ab4ff"></span></div>
+</main>
+
+<footer style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 0 10px 2px 4px">
+<span style="height: 32px; box-sizing: border-box; padding: 0 14px 0 12px; display: flex; align-items: center; gap: 8px; border-radius: 100px; background: rgba(255,255,255,0.10); border: 1px solid rgba(255,255,255,0.16); box-shadow: inset 0 1px 0 rgba(255,255,255,0.18); font-size: 12px; line-height: 16px; font-weight: 600">
+<span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 100px; background: #8ab4ff"></span>
+<span>Sam is typing</span>
+</span>
+<span style="font-size: 12px; line-height: 16px; color: #a9acb6">You can type too. End the session or quit Knock to close the door.</span>
+</footer>
+
+</div>
+</div>
+
+</body>
+</html>
