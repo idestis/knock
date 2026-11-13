@@ -1,0 +1,299 @@
+# Knock monorepo tasks. `task --list` for the menu.
+#
+# One version for everything (app, CLI, relay): mac/Config/Version.xcconfig.
+# Releases go to GitHub (idestis/knock). Sparkle reads
+# https://github.com/idestis/knock/releases/latest/download/appcast.xml
+version: "3"
+
+dotenv: [".env"]
+
+vars:
+  REPO: idestis/knock
+  VERSION:
+    sh: sed -n 's/^MARKETING_VERSION = //p' mac/Config/Version.xcconfig
+  BUILD:
+    sh: sed -n 's/^CURRENT_PROJECT_VERSION = //p' mac/Config/Version.xcconfig
+  TAG: v{{.VERSION}}
+  DIST: "{{.ROOT_DIR}}/dist"
+  NOTARY_PROFILE: '{{.NOTARY_PROFILE | default "knock-notary"}}'
+  SPARKLE_VERSION: 2.10.1
+  SPARKLE_ACCOUNT: knock
+  SPARKLE_BIN: "{{.ROOT_DIR}}/mac/.sparkle/bin"
+  APP_DD: "{{.ROOT_DIR}}/mac/build/dd"
+  XCB: >-
+    xcodebuild -project Knock.xcodeproj -scheme Knock
+    -clonedSourcePackagesDirPath build/spm -derivedDataPath build/dd
+    -skipPackagePluginValidation -skipMacroValidation
+  LDFLAGS: -s -w -X main.version={{.VERSION}} -X github.com/idestis/knock/cli/internal/app.Version={{.VERSION}}
+
+tasks:
+  default:
+    cmds: [task --list]
+    silent: true
+
+  # ── Everyday ────────────────────────────────────────────────────────────────
+
+  setup:
+    desc: Check the tools this repo needs
+    cmds:
+      - |
+        for t in go xcodebuild xcodegen create-dmg git-cliff gh; do
+          command -v $t >/dev/null && echo "✓ $t" || echo "✗ $t (brew install $t)"
+        done
+
+  test:
+    desc: Run every test (Go with -race, Swift unit tests)
+    cmds:
+      - task: go:test
+      - task: app:test
+
+  dev:
+    desc: Run a local relay and the Debug app against it
+    cmds:
+      - task: app:build
+      - (go run ./relay/cmd/knockd -addr 127.0.0.1:8787 &) ; sleep 1
+      - open {{.APP_DD}}/Build/Products/Debug/Knock.app
+
+  # ── Go: relay and CLI ───────────────────────────────────────────────────────
+
+  go:test:
+    desc: Go vet and tests with the race detector
+    cmds:
+      - test -z "$(gofmt -l protocol relay client cli tools)" || (gofmt -l protocol relay client cli tools; exit 1)
+      - go vet ./...
+      - go test -race -count=1 ./...
+
+  relay:run:
+    desc: Run knockd on 127.0.0.1:8787 (anonymous allowed, no sign-in providers unless set in .env)
+    cmds:
+      - go run ./relay/cmd/knockd -addr 127.0.0.1:8787
+
+  relay:build:
+    desc: Build knockd for this machine
+    cmds:
+      - CGO_ENABLED=0 go build -trimpath -ldflags "{{.LDFLAGS}}" -o bin/knockd ./relay/cmd/knockd
+
+  relay:image:
+    desc: Build the knock-relay container image locally
+    cmds:
+      - docker build -f relay/Dockerfile --build-arg VERSION={{.VERSION}} -t ghcr.io/{{.REPO}}-relay:{{.VERSION}} .
+
+  cli:build:
+    desc: Build the knock CLI for this machine into bin/
+    cmds:
+      - CGO_ENABLED=0 go build -trimpath -ldflags "{{.LDFLAGS}}" -o bin/knock ./cli/cmd/knock
+
+  cli:dist:
+    desc: Cross-build the CLI and relay for release (darwin and linux, arm64 and amd64)
+    cmds:
+      - rm -rf {{.DIST}}/cli && mkdir -p {{.DIST}}/cli
+      - |
+        for os in darwin linux; do for arch in arm64 amd64; do
+          d={{.DIST}}/cli/knock_{{.VERSION}}_${os}_${arch}
+          mkdir -p $d
+          CGO_ENABLED=0 GOOS=$os GOARCH=$arch go build -trimpath -ldflags "{{.LDFLAGS}}" -o $d/knock ./cli/cmd/knock
+          cp README.md LICENSE $d/ 2>/dev/null || true
+          if [ "$os" = linux ]; then
+            CGO_ENABLED=0 GOOS=$os GOARCH=$arch go build -trimpath -ldflags "{{.LDFLAGS}}" -o $d/knockd ./relay/cmd/knockd
+          fi
+        done; done
+
+  cli:sign:
+    desc: Sign and notarize the macOS CLI binaries, then pack every archive
+    deps: [cli:dist]
+    cmds:
+      - |
+        set -euo pipefail
+        id=$(security find-identity -v -p codesigning | awk -F'"' '/Developer ID Application/ {print $2; exit}')
+        if [ -n "$id" ]; then
+          for d in {{.DIST}}/cli/knock_{{.VERSION}}_darwin_*; do
+            codesign --force --timestamp --options runtime --sign "$id" $d/knock
+          done
+          (cd {{.DIST}}/cli && zip -qr notarize-cli.zip knock_{{.VERSION}}_darwin_*/knock)
+          {{.ROOT_DIR}}/scripts/notarize.sh {{.DIST}}/cli/notarize-cli.zip {{.NOTARY_PROFILE}}
+          rm {{.DIST}}/cli/notarize-cli.zip
+        else
+          echo "No Developer ID identity: macOS CLI binaries stay unsigned."
+        fi
+        cd {{.DIST}}/cli
+        for d in knock_{{.VERSION}}_*; do [ -d "$d" ] && tar -czf "$d.tar.gz" "$d"; done
+
+  # ── Mac app ─────────────────────────────────────────────────────────────────
+
+  app:gen:
+    desc: Generate Knock.xcodeproj from mac/project.yml
+    dir: mac
+    sources: [project.yml]
+    cmds:
+      - xcodegen generate --quiet
+
+  app:open:
+    desc: Open the project in Xcode
+    dir: mac
+    deps: [app:gen]
+    cmds: [open Knock.xcodeproj]
+
+  app:icons:
+    desc: Re-render AppIcon from scripts/knock-mark.svg
+    dir: mac
+    cmds:
+      - swift scripts/make-icons.swift scripts/knock-mark.svg Resources/Assets.xcassets/AppIcon.appiconset
+
+  app:build:
+    desc: Debug build of Knock.app
+    dir: mac
+    deps: [app:gen]
+    cmds:
+      - "{{.XCB}} -configuration Debug build | xcbeautify 2>/dev/null || {{.XCB}} -configuration Debug build -quiet"
+
+  app:run:
+    desc: Build and launch the Debug app (KNOCK_HOME=... to use a scratch ~/.knock)
+    deps: [app:build]
+    cmds:
+      - pkill -x Knock || true
+      - open -n {{.APP_DD}}/Build/Products/Debug/Knock.app
+
+  app:test:
+    desc: Swift unit tests
+    dir: mac
+    deps: [app:gen]
+    cmds:
+      - "{{.XCB}} -configuration Debug test -quiet"
+
+  app:bump:
+    desc: "Set the version: task app:bump -- 0.2.0 (also bumps the build number)"
+    dir: mac
+    cmds:
+      - |
+        v="{{.CLI_ARGS}}"; [ -n "$v" ] || { echo "usage: task app:bump -- X.Y.Z"; exit 1; }
+        b=$(( {{.BUILD}} + 1 ))
+        sed -i '' "s/^MARKETING_VERSION = .*/MARKETING_VERSION = $v/; s/^CURRENT_PROJECT_VERSION = .*/CURRENT_PROJECT_VERSION = $b/" Config/Version.xcconfig
+        echo "Version $v ($b)"
+
+  # ── One-time release setup ──────────────────────────────────────────────────
+
+  signing:setup:
+    desc: Write mac/Config/Signing.xcconfig from TEAM_ID in .env
+    cmds:
+      - test -n "$TEAM_ID" || (echo "Set TEAM_ID in .env"; exit 1)
+      - printf 'DEVELOPMENT_TEAM = %s\nCODE_SIGN_IDENTITY = Apple Development\n' "$TEAM_ID" > mac/Config/Signing.xcconfig
+
+  notary:setup:
+    desc: Store notarytool credentials in the keychain (interactive, once)
+    cmds:
+      - xcrun notarytool store-credentials {{.NOTARY_PROFILE}} --team-id "$TEAM_ID"
+
+  sparkle:install:
+    desc: Download Sparkle's command-line tools into mac/.sparkle
+    status: ["test -x {{.SPARKLE_BIN}}/sign_update"]
+    cmds:
+      - mkdir -p mac/.sparkle
+      - curl -fsSL https://github.com/sparkle-project/Sparkle/releases/download/{{.SPARKLE_VERSION}}/Sparkle-{{.SPARKLE_VERSION}}.tar.xz | tar -xJ -C mac/.sparkle
+
+  sparkle:keys:
+    desc: Create (or print) the EdDSA update key and write its public half to Local.xcconfig
+    deps: [sparkle:install]
+    cmds:
+      - |
+        {{.SPARKLE_BIN}}/generate_keys --account {{.SPARKLE_ACCOUNT}} >/dev/null 2>&1 || true
+        pub=$({{.SPARKLE_BIN}}/generate_keys --account {{.SPARKLE_ACCOUNT}} -p)
+        f=mac/Config/Local.xcconfig; touch $f
+        grep -v '^SPARKLE_PUBLIC_KEY' $f > $f.tmp || true; mv $f.tmp $f
+        echo "SPARKLE_PUBLIC_KEY = $pub" >> $f
+        echo "Public key: $pub  (private key stays in your login keychain; back it up with generate_keys -x)"
+
+  # ── Release ─────────────────────────────────────────────────────────────────
+
+  app:release:build:
+    desc: Release build signed with Developer ID (hardened runtime, Sparkle re-signed inside out)
+    dir: mac
+    deps: [app:gen]
+    cmds:
+      - |
+        set -euo pipefail
+        test -n "${TEAM_ID:-}" || { echo "Set TEAM_ID in .env"; exit 1; }
+        grep -q '^SPARKLE_PUBLIC_KEY = .\+' Config/Local.xcconfig || { echo "Run task sparkle:keys first"; exit 1; }
+        rm -rf build/release
+        {{.XCB}} -configuration Release -derivedDataPath build/release build -quiet \
+          CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="Developer ID Application" DEVELOPMENT_TEAM="$TEAM_ID" \
+          OTHER_CODE_SIGN_FLAGS=--timestamp CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO
+        app=build/release/Build/Products/Release/Knock.app
+        id=$(security find-identity -v -p codesigning | awk -F'"' '/Developer ID Application/ {print $2; exit}')
+        sign() { codesign --force --timestamp --options runtime --sign "$id" "$@"; }
+        fw=$app/Contents/Frameworks/Sparkle.framework
+        sign "$fw/Versions/B/XPCServices/Installer.xpc"
+        sign --preserve-metadata=entitlements "$fw/Versions/B/XPCServices/Downloader.xpc"
+        sign "$fw/Versions/B/Autoupdate"
+        sign "$fw/Versions/B/Updater.app"
+        sign "$fw"
+        sign --entitlements Resources/Knock.entitlements "$app"
+        codesign --verify --deep --strict --verbose=2 "$app"
+        ! codesign -d --entitlements - "$app" 2>/dev/null | grep -q get-task-allow
+        test -n "$(/usr/libexec/PlistBuddy -c 'Print :SUPublicEDKey' $app/Contents/Info.plist)"
+        mkdir -p {{.DIST}} && rm -rf {{.DIST}}/Knock.app && cp -R "$app" {{.DIST}}/
+        echo "Signed {{.DIST}}/Knock.app"
+
+  app:dmg:
+    desc: Package dist/Knock.app into a signed DMG
+    deps: [app:release:build]
+    cmds:
+      - |
+        set -euo pipefail
+        out={{.DIST}}/Knock-{{.VERSION}}.dmg; rm -f "$out"
+        create-dmg --volname Knock --window-size 540 360 --icon-size 96 \
+          --icon Knock.app 140 170 --app-drop-link 400 170 --hide-extension Knock.app \
+          "$out" {{.DIST}}/Knock.app
+        id=$(security find-identity -v -p codesigning | awk -F'"' '/Developer ID Application/ {print $2; exit}')
+        codesign --force --timestamp --sign "$id" "$out"
+
+  app:notarize:
+    desc: Notarize and staple the DMG
+    deps: [app:dmg]
+    cmds:
+      - scripts/notarize.sh {{.DIST}}/Knock-{{.VERSION}}.dmg {{.NOTARY_PROFILE}}
+      - xcrun stapler staple {{.DIST}}/Knock-{{.VERSION}}.dmg
+      - spctl --assess --type open --context context:primary-signature -v {{.DIST}}/Knock-{{.VERSION}}.dmg
+
+  appcast:
+    desc: Write dist/appcast.xml for this release (Sparkle EdDSA-signed, served from GitHub Releases)
+    deps: [sparkle:install]
+    cmds:
+      - >-
+        scripts/appcast.sh {{.DIST}}/Knock-{{.VERSION}}.dmg {{.VERSION}} {{.BUILD}} {{.TAG}} {{.REPO}}
+        {{.SPARKLE_BIN}} {{.SPARKLE_ACCOUNT}} > {{.DIST}}/appcast.xml
+      - echo "Wrote {{.DIST}}/appcast.xml"
+
+  release:
+    desc: "Cut a release locally: changelog, commit, tag (task release -- 0.2.0)"
+    cmds:
+      - |
+        set -euo pipefail
+        test "$(git branch --show-current)" = main || { echo "Release from main"; exit 1; }
+        test -z "$(git status --porcelain)" || { echo "Commit or stash first"; exit 1; }
+        v="{{.CLI_ARGS}}"; [ -n "$v" ] || v=$(git cliff --bumped-version 2>/dev/null | sed 's/^v//')
+        task app:bump -- "$v"
+        git cliff --tag "v$v" -o CHANGELOG.md
+        git add CHANGELOG.md mac/Config/Version.xcconfig
+        git commit -qm "chore(release): v$v"
+        git tag -a "v$v" -m "Knock v$v"
+        echo "Tagged v$v. Next: task publish"
+
+  publish:
+    desc: Build, sign, notarize and upload the app, CLI and appcast to GitHub Releases ({{.REPO}})
+    preconditions:
+      - sh: git describe --exact-match --tags HEAD
+        msg: "HEAD is not tagged. Run task release first."
+      - sh: gh auth status
+        msg: "Run gh auth login first."
+    cmds:
+      - rm -rf {{.DIST}} && mkdir -p {{.DIST}}
+      - task: app:notarize
+      - task: appcast
+      - task: cli:sign
+      - (cd {{.DIST}} && shasum -a 256 Knock-{{.VERSION}}.dmg cli/*.tar.gz | sed 's| cli/| |' > checksums.txt)
+      - git push -q origin HEAD:main {{.TAG}}
+      - |
+        notes=$(git cliff --current --strip all 2>/dev/null || echo "Knock {{.VERSION}}")
+        gh release create {{.TAG}} --repo {{.REPO}} --title "Knock {{.VERSION}}" --notes "$notes" --verify-tag \
+          {{.DIST}}/Knock-{{.VERSION}}.dmg {{.DIST}}/appcast.xml {{.DIST}}/checksums.txt {{.DIST}}/cli/*.tar.gz
+      - echo "Published https://github.com/{{.REPO}}/releases/tag/{{.TAG}}"

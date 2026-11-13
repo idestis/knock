@@ -1,0 +1,81 @@
+# knock-relay on Kubernetes. Apply with: kubectl apply -f deploy/knock-relay.yaml
+#
+# v0.1 keeps state in memory, so run ONE replica. The multi-replica design
+# (DynamoDB conditional writes + pod-to-pod forwarding) is DESIGN.md section 8.
+# Expose it only on your tailnet (Tailscale operator below) or an internal LB.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: knock
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: knock-relay
+  namespace: knock
+type: Opaque
+stringData:
+  # 32+ random bytes: openssl rand -base64 48. Keeps sign-ins valid across restarts.
+  KNOCK_TOKEN_SECRET: "change-me"
+  KNOCK_GOOGLE_CLIENT_ID: ""
+  KNOCK_GOOGLE_CLIENT_SECRET: ""
+  KNOCK_GITHUB_CLIENT_ID: ""
+  KNOCK_GITHUB_CLIENT_SECRET: ""
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: knock-relay
+  namespace: knock
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: {app: knock-relay}
+  template:
+    metadata:
+      labels: {app: knock-relay}
+    spec:
+      terminationGracePeriodSeconds: 60
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: knockd
+          image: ghcr.io/idestis/knock-relay:latest
+          ports:
+            - {name: http, containerPort: 8787}
+          envFrom:
+            - secretRef: {name: knock-relay}
+          env:
+            - {name: KNOCK_PUBLIC_URL, value: "https://knock.example.ts.net"}
+            - {name: KNOCK_ALLOW_ANONYMOUS, value: "true"}
+            - {name: KNOCK_GOOGLE_DOMAIN, value: ""}
+            - {name: KNOCK_GITHUB_ORG, value: ""}
+            - {name: KNOCK_DRAIN_GRACE, value: "50s"}
+          readinessProbe:
+            httpGet: {path: /readyz, port: http}
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {memory: 256Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: knock-relay
+  namespace: knock
+  annotations:
+    # Tailscale Kubernetes operator: exposes the relay on your tailnet only.
+    tailscale.com/expose: "true"
+    tailscale.com/hostname: "knock"
+spec:
+  selector: {app: knock-relay}
+  ports:
+    - {name: http, port: 443, targetPort: http}

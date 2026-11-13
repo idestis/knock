@@ -1,0 +1,22 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: gofmt
+        run: test -z "$(gofmt -l protocol relay client cli tools)" || (gofmt -l protocol relay client cli tools; exit 1)
+      - run: go vet ./...
+      - run: go test -race -count=1 ./...
