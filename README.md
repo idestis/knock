@@ -169,4 +169,8 @@ design/     Logo and mocks
 
 **Releasing** (maintainers): `task release -- 0.2.0` then `task publish`. That builds, signs and notarizes the app and CLI, writes a Sparkle appcast, and uploads everything to a GitHub release. One-time setup: `task signing:setup`, `task notary:setup`, `task sparkle:keys`.
 
-Read [DESIGN.md](DESIGN.md) for the full spec.
+Read [DESIGN.md](DESIGN.md) for the full spec and [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
+
+## License
+
+[MIT](LICENSE)
