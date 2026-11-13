@@ -1,0 +1,9 @@
+.DS_Store
+.env
+bin/
+dist/
+mac/build/
+mac/Knock.xcodeproj/
+mac/Config/Signing.xcconfig
+mac/Config/Local.xcconfig
+mac/.sparkle/
