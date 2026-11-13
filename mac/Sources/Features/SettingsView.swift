@@ -60,38 +60,54 @@ private struct AccountSettings: View {
     var body: some View {
         @Bindable var s = model.settings
         Form {
-            Section {
-                if let me = model.me, me.verified {
+            if let me = model.me, me.verified {
+                Section {
                     LabeledContent("Signed in as") {
                         VStack(alignment: .trailing) {
                             Text(me.name)
                             Text(me.email ?? me.provider.capitalized).foregroundStyle(.secondary)
                         }
                     }
-                    Button("Sign Out", role: .destructive, action: model.signOut)
-                } else {
-                    TextField("Your name", text: $s.displayName)
-                    Text("You're using Knock without an account. People you knock on see this name marked \"not verified\".")
-                        .font(.callout).foregroundStyle(.secondary)
-                    HStack {
-                        ForEach(model.providers, id: \.self) { p in
-                            Button {
-                                model.signIn(p)
-                            } label: {
-                                Label("Sign in with \(p == "github" ? "GitHub" : "Google")", systemImage: p == "github" ? "chevron.left.forwardslash.chevron.right" : "g.circle")
-                            }
-                            .buttonStyle(.glass)
-                        }
-                        if model.signingIn { ProgressView().controlSize(.small) }
-                    }
-                    if model.providers.isEmpty {
-                        Text("This relay doesn't offer sign-in.").foregroundStyle(.secondary)
-                    }
+                    LabeledContent("With", value: me.provider == "github" ? "GitHub" : "Google")
+                } footer: {
+                    Text("Your verified name and email show on every knock. You stay signed in on this Mac; the sign-in renews itself while you use Knock.")
+                        .foregroundStyle(.secondary)
                 }
-                if let e = model.authError { Text(e).foregroundStyle(.orange) }
-            } footer: {
-                Text("Signing in puts your verified name on every knock. You stay signed in on this Mac; the session renews itself while you use Knock.")
-                    .foregroundStyle(.secondary)
+                Section {
+                    Button("Sign Out", role: .destructive, action: model.signOut)
+                }
+            } else {
+                Section {
+                    TextField("Your name", text: $s.displayName)
+                } footer: {
+                    Text("Without an account, people you knock on see this name marked \"not verified\".")
+                        .foregroundStyle(.secondary)
+                }
+                Section {
+                    if model.providers.isEmpty {
+                        LabeledContent("Sign in") {
+                            Text(model.connected ? "Not offered by this relay" : "Relay not connected").foregroundStyle(.secondary)
+                        }
+                    } else {
+                        ForEach(model.providers, id: \.self) { p in
+                            LabeledContent(p == "github" ? "GitHub" : "Google") {
+                                Button("Sign In") { model.signIn(p) }
+                                    .disabled(model.signingIn)
+                            }
+                        }
+                    }
+                    if let e = model.authError {
+                        Text(e).foregroundStyle(.orange)
+                    }
+                } header: {
+                    HStack {
+                        Text("Sign in")
+                        if model.signingIn { ProgressView().controlSize(.mini) }
+                    }
+                } footer: {
+                    Text("Optional. Signing in puts your verified name on every knock, and you stay signed in on this Mac.")
+                        .foregroundStyle(.secondary)
+                }
             }
         }
         .formStyle(.grouped)
