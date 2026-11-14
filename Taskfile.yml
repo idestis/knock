@@ -244,8 +244,11 @@ tasks:
         sign "$fw"
         sign --entitlements Resources/Knock.entitlements "$app"
         codesign --verify --deep --strict --verbose=2 "$app"
-        ! codesign -d --entitlements - "$app" 2>/dev/null | grep -q get-task-allow
-        test -n "$(/usr/libexec/PlistBuddy -c 'Print :SUPublicEDKey' $app/Contents/Info.plist)"
+        # Task's shell fails a negated pipeline under set -e, so use if/then.
+        if codesign -d --entitlements - "$app" 2>/dev/null | grep -q get-task-allow; then
+          echo "The release build has get-task-allow; it would fail notarization."; exit 1
+        fi
+        test -n "$(/usr/libexec/PlistBuddy -c 'Print :SUPublicEDKey' $app/Contents/Info.plist)" || { echo "No Sparkle public key in Info.plist"; exit 1; }
         mkdir -p {{.DIST}} && rm -rf {{.DIST}}/Knock.app && cp -R "$app" {{.DIST}}/
         echo "Signed {{.DIST}}/Knock.app"
 
