@@ -56,6 +56,15 @@ func runUpdate(ctx context.Context, args []string) error {
 	current := strings.TrimPrefix(Version, "v")
 	newer := compareVersions(latest, current) > 0
 
+	exe, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	if resolved, err := filepath.EvalSymlinks(exe); err == nil {
+		exe = resolved
+	}
+	brew := installedByHomebrew(exe)
+
 	switch {
 	case current == "dev" && !*force:
 		ui.Say("This is a development build. The latest release is %s.", latest)
@@ -64,8 +73,16 @@ func runUpdate(ctx context.Context, args []string) error {
 	case !newer && !*force:
 		ui.Say("You're on the latest version, %s.", current)
 		return nil
+	case *check && brew:
+		ui.Say("Knock %s is available (you have %s). Run brew upgrade idestis/knock/knock to install it.", latest, current)
+		return nil
 	case *check:
 		ui.Say("Knock %s is available (you have %s). Run knock update to install it.", latest, current)
+		return nil
+	case brew:
+		// Replacing a file inside the Cellar would leave Homebrew out of step with what's installed.
+		ui.Say("Knock %s is available (you have %s).", latest, current)
+		ui.Note("You installed knock with Homebrew, so run brew upgrade idestis/knock/knock.")
 		return nil
 	}
 
@@ -104,13 +121,6 @@ func runUpdate(ctx context.Context, args []string) error {
 		return err
 	}
 
-	exe, err := os.Executable()
-	if err != nil {
-		return err
-	}
-	if resolved, err := filepath.EvalSymlinks(exe); err == nil {
-		exe = resolved
-	}
 	if err := replaceExecutable(exe, bin); err != nil {
 		if errors.Is(err, os.ErrPermission) {
 			return fmt.Errorf("I can't write to %s. Run sudo knock update, or reinstall knock in a folder you own", filepath.Dir(exe))
@@ -211,6 +221,11 @@ func replaceExecutable(exe string, bin []byte) error {
 		return err
 	}
 	return os.Rename(tmp.Name(), exe)
+}
+
+// installedByHomebrew reports whether exe (symlinks resolved) lives in a Homebrew Cellar.
+func installedByHomebrew(exe string) bool {
+	return strings.Contains(filepath.ToSlash(exe), "/Cellar/knock/")
 }
 
 // compareVersions compares dotted versions numerically: 1 if a > b, -1 if a < b.

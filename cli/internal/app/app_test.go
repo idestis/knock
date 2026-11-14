@@ -32,3 +32,16 @@ func TestSentence(t *testing.T) {
 		t.Fatalf("got %q", got)
 	}
 }
+
+func TestInstalledByHomebrew(t *testing.T) {
+	for path, want := range map[string]bool{
+		"/opt/homebrew/Cellar/knock/0.1.0/bin/knock":              true,
+		"/home/linuxbrew/.linuxbrew/Cellar/knock/0.1.0/bin/knock": true,
+		"/usr/local/bin/knock":                                    false,
+		"/Users/me/go/bin/knock":                                  false,
+	} {
+		if got := installedByHomebrew(path); got != want {
+			t.Errorf("installedByHomebrew(%q) = %v, want %v", path, got, want)
+		}
+	}
+}
