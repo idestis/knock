@@ -103,6 +103,9 @@ func (s *StatusLine) Teardown() {
 	s.t.Printf("\x1b7\x1b[r\x1b8\x1b[%d;1H\x1b[2K\r\n", s.rows)
 }
 
+// Width is the status line's width in columns.
+func (s *StatusLine) Width() int { return s.cols }
+
 // Elapsed formats a duration in seconds as mm:ss (or h:mm:ss).
 func Elapsed(secs int) string {
 	if secs >= 3600 {

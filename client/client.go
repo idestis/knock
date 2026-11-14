@@ -184,6 +184,13 @@ func (c *Client) WriteData(ctx context.Context, b []byte) error {
 
 func (c *Client) Close() error { return c.conn.Close(websocket.StatusNormalClosure, "bye") }
 
+// The PBKDF2 rounds a relay may ask a knocker to use. Hosts write
+// protocol.PBKDF2Iterations; anything outside this range is refused.
+const (
+	MinIterations = 100_000
+	MaxIterations = 10_000_000
+)
+
 // HashForDoor fetches the door's salt and hashes code with it.
 func (c *Client) HashForDoor(ctx context.Context, doorID, code string) ([]byte, error) {
 	var salt protocol.DoorSalt
@@ -192,6 +199,11 @@ func (c *Client) HashForDoor(ctx context.Context, doorID, code string) ([]byte, 
 	}
 	if salt.KDF != protocol.KDFPBKDF2SHA256 {
 		return nil, fmt.Errorf("unsupported kdf %q", salt.KDF)
+	}
+	if salt.Iterations < MinIterations || salt.Iterations > MaxIterations {
+		// Too few makes a captured hash cheap to brute-force; too many
+		// stalls this device. Either way the relay shouldn't ask for it.
+		return nil, fmt.Errorf("the relay asked for %d hashing rounds, outside %d to %d", salt.Iterations, MinIterations, MaxIterations)
 	}
 	return protocol.HashCode(code, salt.Salt, salt.Iterations), nil
 }

@@ -18,11 +18,16 @@ import (
 	"github.com/idestis/knock/protocol"
 )
 
-// Keychain item shared with Knock.app (docs/LOCAL_STATE.md).
+// Keychain items shared with Knock.app (docs/LOCAL_STATE.md, "Sign-in
+// tokens"): one per relay origin, account "session:<origin>". Older builds
+// kept one sign-in under LegacyAccount for whatever relay was configured.
 const (
 	KeychainService = "io.github.idestis.knock"
-	KeychainAccount = "session"
+	LegacyAccount   = "session"
 )
+
+// Account is the Keychain account for a relay origin (see state.Origin).
+func Account(origin string) string { return "session:" + origin }
 
 // RefreshWindow: refresh when the access token has less than this left.
 const RefreshWindow = 5 * time.Minute
@@ -40,11 +45,19 @@ type Tokens struct {
 // ErrRejected means the relay refused the refresh token (HTTP 401).
 var ErrRejected = errors.New("the relay no longer accepts this sign-in")
 
-// Load returns the stored tokens; ok is false when signed out.
-func Load() (t Tokens, ok bool, err error) {
-	s, err := keyring.Get(KeychainService, KeychainAccount)
+// Load returns the sign-in for the relay at origin; ok is false when
+// signed out there. A sign-in from an older build moves to this relay
+// first (once; whichever client runs first does it).
+func Load(origin string) (t Tokens, ok bool, err error) {
+	if origin == "" {
+		return t, false, errors.New("no relay to load a sign-in for")
+	}
+	s, err := keyring.Get(KeychainService, Account(origin))
 	if errors.Is(err, keyring.ErrNotFound) {
-		return t, false, nil
+		s, err = migrateLegacy(origin)
+		if s == "" && err == nil {
+			return t, false, nil
+		}
 	}
 	if err != nil {
 		return t, false, fmt.Errorf("read the Keychain: %w", err)
@@ -55,21 +68,52 @@ func Load() (t Tokens, ok bool, err error) {
 	return t, true, nil
 }
 
-// Save stores tokens in the Keychain.
-func Save(t Tokens) error {
+// migrateLegacy moves the single sign-in older builds kept into origin's
+// account and returns it, or "" when there is none.
+func migrateLegacy(origin string) (string, error) {
+	s, err := keyring.Get(KeychainService, LegacyAccount)
+	if errors.Is(err, keyring.ErrNotFound) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	// Knock.app may have moved (and since refreshed) it a moment ago:
+	// its copy wins.
+	if cur, err := keyring.Get(KeychainService, Account(origin)); err == nil {
+		_ = keyring.Delete(KeychainService, LegacyAccount)
+		return cur, nil
+	}
+	if err := keyring.Set(KeychainService, Account(origin), s); err != nil {
+		return "", err
+	}
+	if err := keyring.Delete(KeychainService, LegacyAccount); err != nil && !errors.Is(err, keyring.ErrNotFound) {
+		return "", err
+	}
+	return s, nil
+}
+
+// Save stores the sign-in for the relay at origin.
+func Save(origin string, t Tokens) error {
+	if origin == "" {
+		return errors.New("no relay to save the sign-in for")
+	}
 	b, err := json.Marshal(t)
 	if err != nil {
 		return err
 	}
-	if err := keyring.Set(KeychainService, KeychainAccount, string(b)); err != nil {
+	if err := keyring.Set(KeychainService, Account(origin), string(b)); err != nil {
 		return fmt.Errorf("save to the Keychain: %w", err)
 	}
 	return nil
 }
 
-// Delete removes the sign-in. Missing is fine.
-func Delete() error {
-	err := keyring.Delete(KeychainService, KeychainAccount)
+// Delete removes the sign-in for the relay at origin. Missing is fine.
+func Delete(origin string) error {
+	if origin == "" {
+		return nil
+	}
+	err := keyring.Delete(KeychainService, Account(origin))
 	if err != nil && !errors.Is(err, keyring.ErrNotFound) {
 		return fmt.Errorf("remove from the Keychain: %w", err)
 	}

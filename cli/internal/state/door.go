@@ -6,18 +6,24 @@ import (
 	"errors"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/idestis/knock/protocol"
 )
 
-// Door is ~/.knock/door.json: this device's door and its current code.
+// Door is ~/.knock/relays/<relay>/door.json: this device's door on one
+// relay and its current code.
 type Door struct {
-	DoorID      string `json:"door_id"`
-	DoorKey     string `json:"door_key"`
-	Code        string `json:"code"`
-	CodeVersion int64  `json:"code_version"`
-	Salt        []byte `json:"salt"`
-	CodeHash    []byte `json:"code_hash"`
+	Relay         string `json:"relay"` // the origin this door belongs to
+	DoorID        string `json:"door_id"`
+	DoorKey       string `json:"door_key"`
+	Code          string `json:"code"`
+	CodeVersion   int64  `json:"code_version"`
+	CodeCreatedAt Time   `json:"code_created_at"`
+	Salt          []byte `json:"salt"`
+	CodeHash      []byte `json:"code_hash"`
+	// Claim is the relay's proof that this key owns DoorID, from door.opened.
+	Claim string `json:"claim,omitempty"`
 }
 
 const doorAlphabet = "abcdefghjkmnpqrstuvwxyz23456789"
@@ -49,37 +55,60 @@ func NewDoorKey() string {
 	return base64.RawURLEncoding.EncodeToString(b)
 }
 
-// LoadDoor reads door.json. ok is false when there is none yet.
-func LoadDoor() (d Door, ok bool, err error) {
-	p, err := Path("door.json")
-	if err != nil {
-		return d, false, err
-	}
-	if err := readJSON(p, &d); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return d, false, nil
-		}
-		return d, false, err
-	}
-	return d, true, nil
+// LoadDoor reads this relay's door.json, moving one from an older build
+// into place first. ok is false when there is none yet, or when the file
+// names another relay (it is ignored, never sent here). A door without
+// code_created_at gets the current time, which starts its age clock; the
+// caller saves it with the next write.
+func (s Store) LoadDoor() (d Door, ok bool, err error) {
+	d, ok, _, err = s.loadDoor()
+	return d, ok, err
 }
 
-// SaveDoor writes door.json.
-func SaveDoor(d Door) error {
-	p, err := Path("door.json")
+// loadDoor is LoadDoor that also reports whether it filled in relay or
+// code_created_at, so the file still needs saving.
+func (s Store) loadDoor() (d Door, ok, filled bool, err error) {
+	migrated, err := s.migrate("door.json")
 	if err != nil {
-		return err
+		return d, false, false, err
 	}
-	return writeJSON(p, d)
+	if err := readJSON(s.path("door.json"), &d); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return Door{}, false, false, nil
+		}
+		return Door{}, false, false, err
+	}
+	if d.Relay != "" && d.Relay != s.Origin {
+		return Door{}, false, false, nil
+	}
+	filled = d.Relay == "" || d.CodeCreatedAt.IsZero()
+	d.Relay = s.Origin
+	if d.CodeCreatedAt.IsZero() {
+		d.CodeCreatedAt = Now()
+	}
+	if migrated && filled {
+		// The move adds relay (and starts the clock) right away, so the
+		// file can't be mistaken for another relay's later.
+		if err := s.SaveDoor(d); err != nil {
+			return d, true, true, err
+		}
+		filled = false
+	}
+	return d, true, filled, nil
 }
+
+// SaveDoor writes this relay's door.json.
+func (s Store) SaveDoor(d Door) error {
+	d.Relay = s.Origin
+	return writeJSON(s.path("door.json"), d)
+}
+
+// DoorPath is where this relay's door.json lives.
+func (s Store) DoorPath() string { return s.path("door.json") }
 
 // DoorModTime returns door.json's modification time in Unix nanoseconds, or 0.
-func DoorModTime() int64 {
-	p, err := Path("door.json")
-	if err != nil {
-		return 0
-	}
-	fi, err := os.Stat(p)
+func (s Store) DoorModTime() int64 {
+	fi, err := os.Stat(s.path("door.json"))
 	if err != nil {
 		return 0
 	}
@@ -88,29 +117,53 @@ func DoorModTime() int64 {
 
 // LoadOrCreateDoor returns the door, creating the id, key and first code
 // when missing.
-func LoadOrCreateDoor() (Door, error) {
-	d, _, err := LoadDoor()
+func (s Store) LoadOrCreateDoor() (Door, error) {
+	d, ok, changed, err := s.loadDoor()
 	if err != nil {
 		return d, err
 	}
-	changed := false
+	changed = changed || !ok
+	if !ok {
+		d = Door{Relay: s.Origin}
+	}
 	if len(d.DoorID) != DoorIDLen {
 		// Empty, or an 8-character id from before the one-code format ("BVJY 1696 ME").
-		d.DoorID, changed = NewDoorID(), true
+		d.DoorID, d.Claim, changed = NewDoorID(), "", true
 	}
 	if d.DoorKey == "" {
-		d.DoorKey, changed = NewDoorKey(), true
+		d.DoorKey, d.Claim, changed = NewDoorKey(), "", true
 	}
 	if d.Code == "" || len(d.Salt) != protocol.SaltLen || len(d.CodeHash) != protocol.HashLen {
 		d.Rotate()
 		changed = true
 	}
 	if changed {
-		if err := SaveDoor(d); err != nil {
+		if err := s.SaveDoor(d); err != nil {
 			return d, err
 		}
 	}
 	return d, nil
+}
+
+// SaveClaim stores the relay's claim for this door without touching the
+// code, re-reading door.json first so a code another client just wrote
+// is kept. It does nothing if the file now holds another door or key.
+func (s Store) SaveClaim(doorID, doorKey, claim string) error {
+	d, ok, err := s.LoadDoor()
+	if err != nil || !ok || d.DoorID != doorID || d.DoorKey != doorKey || d.Claim == claim {
+		return err
+	}
+	d.Claim = claim
+	return s.SaveDoor(d)
+}
+
+// CodeExpired reports whether the code is older than maxAgeDays.
+// 0 means codes never expire.
+func (d Door) CodeExpired(maxAgeDays int, now time.Time) bool {
+	if maxAgeDays <= 0 || d.CodeCreatedAt.IsZero() {
+		return false
+	}
+	return now.Sub(d.CodeCreatedAt.Time) >= time.Duration(maxAgeDays)*24*time.Hour
 }
 
 // Rotate replaces the code, salt and hash and bumps the version.
@@ -119,6 +172,7 @@ func (d *Door) Rotate() {
 	d.Salt = protocol.NewSalt()
 	d.CodeHash = protocol.HashCode(d.Code, d.Salt, protocol.PBKDF2Iterations)
 	d.CodeVersion++
+	d.CodeCreatedAt = Now()
 }
 
 // Record is what the relay stores for this door's code.

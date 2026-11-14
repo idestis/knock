@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/idestis/knock/cli/internal/config"
@@ -25,7 +26,12 @@ func runJoin(ctx context.Context, cfg config.Config, args []string) error {
 	if err != nil {
 		return err
 	}
-	recent, err := state.LoadRecent()
+	// Recent doors, and the code hashes kept for them, belong to this relay.
+	store, err := state.ForRelay(cfg.Relay)
+	if err != nil {
+		return err
+	}
+	recent, err := store.LoadRecent()
 	if err != nil {
 		return err
 	}
@@ -45,8 +51,8 @@ func runJoin(ctx context.Context, cfg config.Config, args []string) error {
 	ui.Say("%s", whoLine(c.Welcome.User))
 
 	label := "Knocking on " + doorID + "…"
-	if inRecent && item.OwnerName != "" {
-		label = "Knocking on " + item.OwnerName + "'s door (" + doorID + ")…"
+	if inRecent && termio.CleanText(item.OwnerName) != "" {
+		label = "Knocking on " + termio.CleanText(item.OwnerName) + "'s door (" + doorID + ")…"
 	}
 	label += ui.Dim.Render("  Ctrl-C to stop")
 
@@ -65,16 +71,27 @@ func runJoin(ctx context.Context, cfg config.Config, args []string) error {
 		return knocked{start: st, hash: hash}, err
 	})
 	if err != nil {
-		return explainKnockError(err, doorID, code, &recent, item)
+		return explainKnockError(err, doorID, code, store, &recent, item)
 	}
 
-	st := res.start
+	st := termio.CleanStart(res.start)
 	owner := st.Peer
-	recent.Upsert(state.RecentItem{
+	row := state.RecentItem{
 		DoorID: doorID, OwnerName: owner.Name, OwnerEmail: owner.Email, Provider: owner.Provider, Verified: owner.Verified,
 		Device: st.PeerDevice, CodeVersion: st.CodeVersion, CodeHash: res.hash, LastSessionAt: state.Now(),
-	})
-	if err := state.SaveRecent(recent); err != nil {
+	}
+	warning := ""
+	if inRecent && ownerChanged(*item, owner) {
+		// Keep the owner you knew pinned, so this warning comes back every
+		// time until you forget the door on purpose.
+		row.OwnerName, row.OwnerEmail, row.Provider, row.Verified = item.OwnerName, item.OwnerEmail, item.Provider, item.Verified
+		was, now := describeOwner(item.OwnerName, item.OwnerEmail, item.Provider, item.Verified), describeOwner(owner.Name, owner.Email, owner.Provider, owner.Verified)
+		ui.Warning("This door's owner changed: was %s, now %s. If you didn't expect that, leave with Ctrl-] then q.", was, now)
+		ui.Note("If it's expected, run knock recent rm %s and knock again with a new code.", doorID)
+		warning = "Owner changed: was " + was + ", now " + now
+	}
+	recent.Upsert(row)
+	if err := store.SaveRecent(recent); err != nil {
 		ui.Warning("Couldn't save %s to your recent doors: %v", doorID, err)
 	}
 
@@ -92,7 +109,7 @@ func runJoin(ctx context.Context, cfg config.Config, args []string) error {
 	g := &session.Guest{
 		Common: session.Common{Conn: c, Events: c.Events, Data: c.Data, Term: termio.Std(), Start: st,
 			SaveMode: cfg.SaveMode(protocol.RoleGuest), SessionsDir: cfg.SessionsDir, Device: deviceName(), Version: Version},
-		Resize: resize,
+		Resize: resize, Warning: warning,
 	}
 	out := g.Run(ctx)
 	ui.Say("%s %s", session.Explain(out.Reason, protocol.RoleGuest, owner), ui.Dim.Render("("+out.Duration.Round(time.Second).String()+")"))
@@ -111,7 +128,7 @@ func runJoin(ctx context.Context, cfg config.Config, args []string) error {
 	} else if it, ok := recent.Find(doorID); ok {
 		it.LastSessionAt = state.Now()
 	}
-	_ = state.SaveRecent(recent)
+	_ = store.SaveRecent(recent)
 	return nil
 }
 
@@ -153,7 +170,47 @@ func knock(ctx context.Context, c *client.Client, doorID string, hash []byte) (p
 	}
 }
 
-func explainKnockError(err error, doorID, code string, recent *state.Recent, item *state.RecentItem) error {
+// ownerChanged reports whether the person behind a door you've been in is
+// someone else now. recent.json keeps no owner id, so a verified owner is
+// matched on provider and email (or name, for GitHub without an email). An
+// owner that was verified and now isn't counts as changed; for an owner who
+// never signed in, the name they typed is all there is to compare.
+func ownerChanged(prev state.RecentItem, now protocol.Identity) bool {
+	if prev.OwnerName == "" && prev.OwnerEmail == "" && prev.Provider == "" {
+		return false // nothing pinned yet
+	}
+	if !prev.Verified {
+		return termio.CleanText(prev.OwnerName) != now.Name
+	}
+	if !now.Verified || prev.Provider != now.Provider {
+		return true
+	}
+	if prev.OwnerEmail != "" || now.Email != "" {
+		return !strings.EqualFold(termio.CleanText(prev.OwnerEmail), now.Email)
+	}
+	return termio.CleanText(prev.OwnerName) != now.Name
+}
+
+// describeOwner is "Maya (maya@example.com, google)" or "Eve (not verified)".
+func describeOwner(name, email, provider string, verified bool) string {
+	name = termio.CleanText(name)
+	if name == "" {
+		name = "someone"
+	}
+	if !verified {
+		return name + " (not verified)"
+	}
+	detail := termio.CleanText(provider)
+	if e := termio.CleanText(email); e != "" {
+		detail = e + ", " + detail
+	}
+	if detail == "" {
+		return name
+	}
+	return name + " (" + detail + ")"
+}
+
+func explainKnockError(err error, doorID, code string, store state.Store, recent *state.Recent, item *state.RecentItem) error {
 	if errors.Is(err, ui.ErrCancelled) || errors.Is(err, context.Canceled) {
 		ui.Note("You stopped knocking.")
 		return exitError{130}
@@ -164,7 +221,7 @@ func explainKnockError(err error, doorID, code string, recent *state.Recent, ite
 	}
 	owner := "they"
 	if item != nil && item.OwnerName != "" {
-		owner = item.OwnerName
+		owner = termio.CleanText(item.OwnerName)
 	}
 	switch perr.Code {
 	case protocol.ErrCodeMismatch:
@@ -173,7 +230,7 @@ func explainKnockError(err error, doorID, code string, recent *state.Recent, ite
 			if item.MismatchSince == nil {
 				item.MismatchSince = &now
 			}
-			_ = state.SaveRecent(*recent)
+			_ = store.SaveRecent(*recent)
 			return fmt.Errorf("The code for %s changed. Ask %s for the new one, then run knock %s <code>", doorID, owner, doorID)
 		}
 		return errors.New("That code doesn't work. Ask for a new one")

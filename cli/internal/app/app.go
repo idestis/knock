@@ -122,7 +122,7 @@ func Main(args []string) int {
 	case "close":
 		err = runClose(ctx, cfg, rest)
 	case "copy":
-		err = runCopy(rest)
+		err = runCopy(cfg, rest)
 	case "login":
 		err = runLogin(ctx, cfg, rest)
 	case "logout":

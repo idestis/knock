@@ -14,6 +14,7 @@ import (
 
 	"github.com/idestis/knock/cli/internal/auth"
 	"github.com/idestis/knock/cli/internal/config"
+	"github.com/idestis/knock/cli/internal/termio"
 	"github.com/idestis/knock/cli/internal/ui"
 	"github.com/idestis/knock/client"
 	"github.com/idestis/knock/protocol"
@@ -120,6 +121,7 @@ func slugDevice(s string) string {
 
 // whoLine describes the identity the relay gave us.
 func whoLine(id protocol.Identity) string {
+	id = termio.CleanIdentity(id)
 	if id.Verified {
 		s := "Signed in as " + ui.Bold.Render(id.Name)
 		if d := auth.Describe(id); d != "" {

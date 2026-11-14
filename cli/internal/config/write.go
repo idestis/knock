@@ -20,6 +20,7 @@ var Settable = map[string]string{
 	"knock.timeout_seconds":   "60",
 	"knock.notch":             "true or false (Knock.app only)",
 	"shell.command":           "/bin/zsh -l",
+	"door.code_max_age_days":  "7 (0 means never)",
 }
 
 // Validate checks a value for key and returns it normalised.
@@ -48,7 +49,7 @@ func Validate(key, value string) (string, error) {
 		if v != "true" && v != "false" {
 			return "", bad
 		}
-	case "sessions.retention_days", "knock.timeout_seconds":
+	case "sessions.retention_days", "knock.timeout_seconds", "door.code_max_age_days":
 		n, err := strconv.Atoi(v)
 		if err != nil || n < 0 || (key == "knock.timeout_seconds" && n == 0) {
 			return "", fmt.Errorf("That doesn't work for %s. Use a whole number", key)
@@ -141,7 +142,7 @@ func Set(path, key, value string) error {
 
 func tomlValue(key, v string) string {
 	switch key {
-	case "sessions.retention_days", "knock.timeout_seconds", "knock.notch", "guest.verified_only":
+	case "sessions.retention_days", "knock.timeout_seconds", "knock.notch", "guest.verified_only", "door.code_max_age_days":
 		return v
 	}
 	return strconv.Quote(v)

@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/charmbracelet/x/ansi"
 	"github.com/creack/pty"
 
 	"github.com/idestis/knock/cli/internal/termio"
@@ -24,7 +25,16 @@ type Host struct {
 	Command    []string // what the PTY runs
 	GuestInput bool     // false starts in Hands off (view-only)
 	Resize     <-chan os.Signal
+	// End, when it receives a reason, ends the session from this side
+	// (for example "code_changed" when knock new-code ran elsewhere).
+	End <-chan string
 }
+
+// keysShownFor is how long the guest's last keys stay on the status line.
+const keysShownFor = 5 * time.Second
+
+// ribbonKeys is how many of the guest's keys the status line shows.
+const ribbonKeys = 24
 
 // statusStyle is a blue bar in 256 colours, which every terminal we care
 // about supports (Terminal.app has no truecolor).
@@ -38,6 +48,9 @@ type hostState struct {
 	mu         sync.Mutex
 	guestInput bool
 	lastGuest  time.Time
+	keys       termio.KeyReader
+	ribbon     termio.KeyRibbon
+	lastDraw   time.Time
 	notice     string
 	noticeTill time.Time
 }
@@ -45,6 +58,9 @@ type hostState struct {
 // Run spawns the shell, shares it, and returns when the session ends.
 func (h *Host) Run(ctx context.Context) Result {
 	t := h.Term
+	// Names come from the relay: strip anything that could redraw the
+	// terminal before the status line or the shell sees them.
+	h.Start = termio.CleanStart(h.Start)
 	cols, rows := t.Size()
 	status := termio.NewStatusLine(t)
 
@@ -68,7 +84,7 @@ func (h *Host) Run(ctx context.Context) Result {
 	}
 
 	rec, recErr := h.startRecording(protocol.RoleHost, cols, ptyRows)
-	st := &hostState{guestInput: h.GuestInput}
+	st := &hostState{guestInput: h.GuestInput, ribbon: termio.KeyRibbon{Max: ribbonKeys}}
 	started := time.Now()
 	res := Result{}
 	if rec != nil {
@@ -94,15 +110,23 @@ func (h *Host) Run(ctx context.Context) Result {
 	draw := func() {
 		st.mu.Lock()
 		defer st.mu.Unlock()
+		st.lastDraw = time.Now()
 		secs := int(time.Since(started) / time.Second)
 		var b strings.Builder
 		b.WriteString(statusOn + " " + h.Start.Peer.Name)
 		if !h.Start.Peer.Verified {
 			b.WriteString(statusDim + " (not verified)")
 		}
-		b.WriteString(statusDim + " is in your shell · " + termio.Elapsed(secs))
-		if time.Since(st.lastGuest) < 1500*time.Millisecond && st.guestInput {
-			b.WriteString(" · " + statusOn + peer + " is typing…" + statusDim)
+		// Every key the guest sends shows here, echoed by the shell or not.
+		keys := st.ribbon.String()
+		showKeys := keys != "" && time.Since(st.lastGuest) < keysShownFor
+		if showKeys {
+			b.WriteString(statusDim + " · " + termio.Elapsed(secs))
+		} else {
+			b.WriteString(statusDim + " is in your shell · " + termio.Elapsed(secs))
+			if time.Since(st.lastGuest) < 1500*time.Millisecond && st.guestInput {
+				b.WriteString(" · " + statusOn + peer + " is typing…" + statusDim)
+			}
 		}
 		if !st.guestInput {
 			b.WriteString(" · " + statusOn + "Hands off" + statusDim)
@@ -113,7 +137,17 @@ func (h *Host) Run(ctx context.Context) Result {
 		if st.notice != "" && time.Now().Before(st.noticeTill) {
 			b.WriteString(" · " + statusOn + st.notice + statusDim)
 		}
-		b.WriteString(" · Ctrl-] then q to end, h for Hands off ")
+		if showKeys {
+			// The newest keys matter most: cut the oldest ones to fit.
+			b.WriteString(" · typed ")
+			room := status.Width() - ansi.StringWidth(b.String()) - 1
+			if w := ansi.StringWidth(keys); room > 0 && w > room {
+				keys = ansi.TruncateLeft(keys, w-room+1, "…")
+			}
+			b.WriteString(statusOn + keys + statusDim + " ")
+		} else {
+			b.WriteString(" · Ctrl-] then q to end, h for Hands off ")
+		}
 		status.Draw(b.String())
 	}
 	flash := func(msg string) {
@@ -196,6 +230,8 @@ func (h *Host) Run(ctx context.Context) Result {
 			return hostEnds(ReasonShellExited)
 		case <-ticker.C:
 			draw()
+		case why := <-h.End:
+			return hostEnds(why)
 		case <-h.Resize:
 			cols, rows = t.Size()
 			ptyRows = status.Resize(cols, rows)
@@ -233,13 +269,19 @@ func (h *Host) Run(ctx context.Context) Result {
 		case b := <-h.Data:
 			st.mu.Lock()
 			allowed := st.guestInput
+			redraw := false
 			if allowed {
 				st.lastGuest = time.Now()
+				st.ribbon.Add(st.keys.Feed(b))
+				redraw = time.Since(st.lastDraw) > 50*time.Millisecond
 			}
 			st.mu.Unlock()
 			if allowed { // the relay enforces this too
 				_, _ = ptmx.Write(b)
 				rec.Input("guest", b)
+			}
+			if redraw {
+				draw()
 			}
 		case ev := <-h.Events:
 			switch ev.Type {

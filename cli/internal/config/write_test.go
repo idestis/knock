@@ -17,6 +17,7 @@ func TestSetKeepsCommentsAndTables(t *testing.T) {
 		{"relay.url", "https://new.example"},
 		{"sessions.retention_days", "14"},
 		{"guest.input", "view-only"},
+		{"door.code_max_age_days", "30"},
 		{"sessions.save", ""}, // remove
 	}
 	for _, s := range steps {
@@ -26,7 +27,7 @@ func TestSetKeepsCommentsAndTables(t *testing.T) {
 	}
 	b, _ := os.ReadFile(path)
 	got := string(b)
-	for _, want := range []string{"# my settings", `url = "https://new.example"`, "retention_days = 14", "[guest]", `input = "view-only"`} {
+	for _, want := range []string{"# my settings", `url = "https://new.example"`, "retention_days = 14", "[guest]", `input = "view-only"`, "[door]", "code_max_age_days = 30"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %q in:\n%s", want, got)
 		}
@@ -38,19 +39,21 @@ func TestSetKeepsCommentsAndTables(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.Relay != "https://new.example" || c.RetentionDays != 14 || c.GuestInput != "view-only" {
+	if c.Relay != "https://new.example" || c.RetentionDays != 14 || c.GuestInput != "view-only" || c.CodeMaxAgeDays != 30 {
 		t.Fatalf("round trip failed: %+v", c)
 	}
 }
 
 func TestValidate(t *testing.T) {
-	ok := map[string]string{"relay.url": "https://r.example/", "sessions.save": "output+input", "knock.notch": "false", "knock.timeout_seconds": "30"}
+	ok := map[string]string{"relay.url": "https://r.example/", "sessions.save": "output+input", "knock.notch": "false", "knock.timeout_seconds": "30",
+		"door.code_max_age_days": "0"}
 	for k, v := range ok {
 		if _, err := Validate(k, v); err != nil {
 			t.Errorf("%s=%s: %v", k, v, err)
 		}
 	}
-	bad := map[string]string{"relay.url": "ftp://x", "sessions.save": "all", "guest.input": "maybe", "knock.timeout_seconds": "0", "nope.key": "1"}
+	bad := map[string]string{"relay.url": "ftp://x", "sessions.save": "all", "guest.input": "maybe", "knock.timeout_seconds": "0", "nope.key": "1",
+		"door.code_max_age_days": "-3"}
 	for k, v := range bad {
 		if _, err := Validate(k, v); err == nil {
 			t.Errorf("%s=%s should fail", k, v)

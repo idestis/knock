@@ -15,6 +15,7 @@ import (
 
 	"github.com/zalando/go-keyring"
 
+	"github.com/idestis/knock/cli/internal/state"
 	"github.com/idestis/knock/protocol"
 )
 
@@ -102,47 +103,47 @@ func TestResolve(t *testing.T) {
 
 	// Fresh token: used as-is, no network.
 	fresh := Tokens{AccessToken: "at", RefreshToken: "rt", ExpiresAt: now.Add(time.Hour).Unix()}
-	_ = Save(fresh)
+	_ = Save(origin("http://unused"), fresh)
 	if r := Resolve(ctx, http.DefaultClient, "http://unused", now); !r.Signed || r.Tokens.AccessToken != "at" {
 		t.Fatalf("fresh token not used: %+v", r)
 	}
 
 	// Close to expiry: refreshed and the rotated tokens saved.
 	srv := fakeRelay(t, 200)
-	_ = Save(Tokens{AccessToken: "at", RefreshToken: "rt", ExpiresAt: now.Add(2 * time.Minute).Unix()})
+	_ = Save(origin(srv.URL), Tokens{AccessToken: "at", RefreshToken: "rt", ExpiresAt: now.Add(2 * time.Minute).Unix()})
 	r := Resolve(ctx, srv.Client(), srv.URL, now)
 	if !r.Signed || r.Tokens.AccessToken != "at-new" {
 		t.Fatalf("not refreshed: %+v", r)
 	}
-	if saved, _, _ := Load(); saved.RefreshToken != "rt-new" {
+	if saved, _, _ := Load(origin(srv.URL)); saved.RefreshToken != "rt-new" {
 		t.Fatalf("rotated refresh token not saved: %+v", saved)
 	}
 
 	// Refresh rejected with 401: token dropped, anonymous with a warning.
 	bad := fakeRelay(t, 401)
-	_ = Save(Tokens{AccessToken: "at", RefreshToken: "rt", ExpiresAt: now.Add(time.Minute).Unix()})
+	_ = Save(origin(bad.URL), Tokens{AccessToken: "at", RefreshToken: "rt", ExpiresAt: now.Add(time.Minute).Unix()})
 	r = Resolve(ctx, bad.Client(), bad.URL, now)
 	if r.Signed || !strings.Contains(r.Warning, "anonymous") {
 		t.Fatalf("want anonymous with warning: %+v", r)
 	}
-	if _, ok, _ := Load(); ok {
+	if _, ok, _ := Load(origin(bad.URL)); ok {
 		t.Fatal("rejected token should be deleted")
 	}
 
 	// Network failure with a still-valid token: keep using it.
-	_ = Save(Tokens{AccessToken: "at", RefreshToken: "rt", ExpiresAt: now.Add(time.Minute).Unix()})
+	_ = Save(origin("http://127.0.0.1:1"), Tokens{AccessToken: "at", RefreshToken: "rt", ExpiresAt: now.Add(time.Minute).Unix()})
 	r = Resolve(ctx, http.DefaultClient, "http://127.0.0.1:1", now)
 	if !r.Signed || r.Tokens.AccessToken != "at" {
 		t.Fatalf("valid token dropped on network error: %+v", r)
 	}
 
 	// Past the refresh deadline: dropped without asking the relay.
-	_ = Save(Tokens{AccessToken: "at", RefreshToken: "rt", ExpiresAt: now.Add(-time.Hour).Unix(), RefreshUntil: now.Add(-time.Minute).Unix()})
+	_ = Save(origin("http://127.0.0.1:1"), Tokens{AccessToken: "at", RefreshToken: "rt", ExpiresAt: now.Add(-time.Hour).Unix(), RefreshUntil: now.Add(-time.Minute).Unix()})
 	r = Resolve(ctx, http.DefaultClient, "http://127.0.0.1:1", now)
 	if r.Signed || !strings.Contains(r.Warning, "expired") {
 		t.Fatalf("want expired: %+v", r)
 	}
-	if _, ok, _ := Load(); ok {
+	if _, ok, _ := Load(origin("http://127.0.0.1:1")); ok {
 		t.Fatal("expired sign-in should be deleted")
 	}
 }
@@ -156,25 +157,89 @@ func TestForceRefresh(t *testing.T) {
 	// rotated secret): refresh even though it isn't due.
 	srv := fakeRelay(t, 200)
 	stale := Tokens{AccessToken: "at", RefreshToken: "rt", ExpiresAt: now.Add(time.Hour).Unix()}
-	_ = Save(stale)
+	_ = Save(origin(srv.URL), stale)
 	if r := ForceRefresh(ctx, srv.Client(), srv.URL, stale, now); !r.Signed || r.Tokens.AccessToken != "at-new" {
 		t.Fatalf("not refreshed: %+v", r)
 	}
 
 	// The relay refuses the refresh too: signed out, so the next dial is anonymous.
 	bad := fakeRelay(t, 401)
-	_ = Save(stale)
+	_ = Save(origin(bad.URL), stale)
 	if r := ForceRefresh(ctx, bad.Client(), bad.URL, stale, now); r.Signed || r.Warning == "" {
 		t.Fatalf("want signed out: %+v", r)
 	}
-	if _, ok, _ := Load(); ok {
+	if _, ok, _ := Load(origin(bad.URL)); ok {
 		t.Fatal("rejected sign-in should be deleted")
 	}
 
 	// Relay unreachable: the forced refresh can't keep a token the relay refused.
-	_ = Save(stale)
+	_ = Save(origin("http://127.0.0.1:1"), stale)
 	if r := ForceRefresh(ctx, http.DefaultClient, "http://127.0.0.1:1", stale, now); r.Signed {
 		t.Fatalf("kept a refused token: %+v", r)
+	}
+}
+
+func origin(u string) string {
+	o, err := state.Origin(u)
+	if err != nil {
+		panic(err)
+	}
+	return o
+}
+
+// A sign-in belongs to the relay that issued it: pointing knock at another
+// relay is anonymous there, and its tokens are never sent.
+func TestSignInIsPerRelay(t *testing.T) {
+	ctx := context.Background()
+	now := time.Now()
+	keyring.MockInit()
+	a := fakeRelay(t, 200)
+	_ = Save(origin(a.URL), Tokens{AccessToken: "at-a", RefreshToken: "rt-a", ExpiresAt: now.Add(time.Hour).Unix()})
+
+	var sawRefresh bool
+	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { sawRefresh = true }))
+	t.Cleanup(other.Close)
+	r := Resolve(ctx, other.Client(), other.URL, now)
+	if r.Signed || r.Tokens.AccessToken != "" || sawRefresh {
+		t.Fatalf("relay a's sign-in reached another relay: %+v", r)
+	}
+	if r := Resolve(ctx, a.Client(), a.URL+"/", now); !r.Signed || r.Tokens.AccessToken != "at-a" {
+		t.Fatalf("the same relay spelt with a slash lost its sign-in: %+v", r)
+	}
+	if got := Account("https://knock.example.com"); got != "session:https://knock.example.com" {
+		t.Fatalf("account = %q", got)
+	}
+}
+
+func TestLegacySignInMoves(t *testing.T) {
+	keyring.MockInit()
+	legacy := `{"access_token":"at-old","refresh_token":"rt-old","expires_at":1}`
+	_ = keyring.Set(KeychainService, LegacyAccount, legacy)
+	o := origin("https://knock.example.com")
+	got, ok, err := Load(o)
+	if err != nil || !ok || got.AccessToken != "at-old" {
+		t.Fatalf("legacy sign-in not moved: %+v %v %v", got, ok, err)
+	}
+	if _, err := keyring.Get(KeychainService, LegacyAccount); err == nil {
+		t.Fatal("the legacy account should be gone after the move")
+	}
+	if s, err := keyring.Get(KeychainService, Account(o)); err != nil || s != legacy {
+		t.Fatalf("not stored under the relay's account: %q %v", s, err)
+	}
+	// Idempotent, and a second relay doesn't inherit it.
+	if _, ok, _ := Load(o); !ok {
+		t.Fatal("second load lost the sign-in")
+	}
+	if _, ok, _ := Load(origin("https://other.example")); ok {
+		t.Fatal("the moved sign-in leaked to another relay")
+	}
+
+	// Knock.app already moved and refreshed it: its copy wins.
+	keyring.MockInit()
+	_ = keyring.Set(KeychainService, LegacyAccount, legacy)
+	_ = keyring.Set(KeychainService, Account(o), `{"access_token":"at-app","refresh_token":"rt-app"}`)
+	if got, _, _ := Load(o); got.AccessToken != "at-app" {
+		t.Fatalf("the app's newer sign-in was replaced: %+v", got)
 	}
 }
 

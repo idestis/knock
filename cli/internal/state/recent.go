@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// RecentItem is one row of ~/.knock/recent.json.
+// RecentItem is one row of ~/.knock/relays/<relay>/recent.json.
 type RecentItem struct {
 	DoorID        string `json:"door_id"`
 	OwnerName     string `json:"owner_name"`
@@ -21,7 +21,8 @@ type RecentItem struct {
 	MismatchSince *Time  `json:"mismatch_since,omitempty"`
 }
 
-// Recent is ~/.knock/recent.json.
+// Recent is ~/.knock/relays/<relay>/recent.json: doors joined through
+// that relay. Their code hashes are only ever sent back to it.
 type Recent struct {
 	Items []RecentItem `json:"items"`
 }
@@ -29,27 +30,25 @@ type Recent struct {
 // MismatchPrune is how long a row may say "code changed" before it goes.
 const MismatchPrune = 30 * 24 * time.Hour
 
-func LoadRecent() (Recent, error) {
+// LoadRecent reads this relay's Recent list, moving one from an older
+// build into place first.
+func (s Store) LoadRecent() (Recent, error) {
 	var r Recent
-	p, err := Path("recent.json")
-	if err != nil {
+	if _, err := s.migrate("recent.json"); err != nil {
 		return r, err
 	}
-	if err := readJSON(p, &r); err != nil && !errors.Is(err, os.ErrNotExist) {
+	if err := readJSON(s.path("recent.json"), &r); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return r, err
 	}
 	return r, nil
 }
 
-func SaveRecent(r Recent) error {
-	p, err := Path("recent.json")
-	if err != nil {
-		return err
-	}
+// SaveRecent writes this relay's Recent list.
+func (s Store) SaveRecent(r Recent) error {
 	if r.Items == nil {
 		r.Items = []RecentItem{}
 	}
-	return writeJSON(p, r)
+	return writeJSON(s.path("recent.json"), r)
 }
 
 // Find returns the row for doorID.

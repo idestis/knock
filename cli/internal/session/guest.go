@@ -19,11 +19,18 @@ import (
 type Guest struct {
 	Common
 	Resize <-chan os.Signal
+	// Warning, if set, shows on the status line for the first seconds of
+	// the session (for example when the door's owner changed).
+	Warning string
 }
+
+// warningShownFor is how long Guest.Warning stays on the status line.
+const warningShownFor = 15 * time.Second
 
 // Run returns when the session ends.
 func (g *Guest) Run(ctx context.Context) Result {
 	t := g.Term
+	g.Start = termio.CleanStart(g.Start)
 	if err := t.MakeRaw(); err != nil {
 		return Result{Reason: ReasonYouEnded, Err: err}
 	}
@@ -72,6 +79,9 @@ func (g *Guest) Run(ctx context.Context) Result {
 		notice, noticeTill = msg, time.Now().Add(5*time.Second)
 		draw()
 	}
+	if w := g.Warning; w != "" { // built from cleaned names
+		notice, noticeTill = w, started.Add(warningShownFor)
+	}
 	draw()
 
 	rec, recErr := g.startRecording(protocol.RoleGuest, hostCols, hostRows)
@@ -85,6 +95,9 @@ func (g *Guest) Run(ctx context.Context) Result {
 	input, stopInput := readInput(t)
 	defer stopInput()
 	esc := &termio.Escaper{Commands: "q"}
+	// The host's shell may not touch the guest's clipboard: OSC 52 is
+	// dropped from its output, everything else passes through as is.
+	var clip termio.ClipboardFilter
 	tick := time.NewTicker(time.Second)
 	defer tick.Stop()
 
@@ -137,7 +150,11 @@ func (g *Guest) Run(ctx context.Context) Result {
 				_ = g.Conn.WriteData(ctx, c.Data)
 				rec.Input("guest", c.Data)
 			}
-		case b := <-g.Data:
+		case raw := <-g.Data:
+			b := clip.Filter(raw)
+			if len(b) == 0 {
+				continue
+			}
 			_, _ = t.Write(b)
 			if termio.ResetsScrollRegion(b, status.ContentRows()) {
 				status.Reassert()

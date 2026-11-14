@@ -14,6 +14,7 @@ import (
 	"github.com/idestis/knock/cli/internal/config"
 	"github.com/idestis/knock/cli/internal/record"
 	"github.com/idestis/knock/cli/internal/state"
+	"github.com/idestis/knock/cli/internal/termio"
 	"github.com/idestis/knock/cli/internal/ui"
 )
 
@@ -21,23 +22,29 @@ func runNewCode(cfg config.Config, args []string) error {
 	if len(args) > 0 {
 		return errors.New("usage: knock new-code")
 	}
-	_, existed, err := state.LoadDoor()
+	store, err := state.ForRelay(cfg.Relay)
 	if err != nil {
 		return err
 	}
-	d, err := state.LoadOrCreateDoor()
+	_, existed, err := store.LoadDoor()
+	if err != nil {
+		return err
+	}
+	d, err := store.LoadOrCreateDoor()
 	if err != nil {
 		return err
 	}
 	if existed {
-		d.Rotate()
-		if err := state.SaveDoor(d); err != nil {
+		d.Rotate() // also restarts the code's age clock
+		if err := store.SaveDoor(d); err != nil {
 			return fmt.Errorf("couldn't save your new code: %w", err)
 		}
 	}
-	ui.Say("Your new code is %s. Anyone with the old code is cut off.", ui.CodeTag.Render(state.DisplayCode(d.Code)))
+	ui.Say("Your new code is %s.", ui.CodeTag.Render(state.DisplayCode(d.Code)))
 	ui.Say("Send them this: %s", ui.Brand.Render(d.ShareString()))
-	ui.Note("If knock open is running, it switches to the new code within a few seconds.")
+	// knock open and Knock.app both watch door.json while the door is open
+	// and push the new code to the relay, which ends any live session.
+	ui.Note("If knock open or Knock.app has your door open, it switches within a few seconds and ends any session. The old code stops working then.")
 	return nil
 }
 
@@ -75,6 +82,7 @@ func runConfig(cfg config.Config, args []string) error {
 		{"guest.verified_only", fmt.Sprint(cfg.GuestVerifiedOnly)},
 		{"knock.timeout_seconds", fmt.Sprint(cfg.KnockTimeout)},
 		{"knock.notch", fmt.Sprint(cfg.KnockNotch) + ui.Dim.Render("  (Knock.app only)")},
+		{"door.code_max_age_days", codeMaxAge(cfg.CodeMaxAgeDays)},
 		{"shell.command", shell},
 	}
 	if cfg.AuthDomain != "" {
@@ -87,6 +95,13 @@ func runConfig(cfg config.Config, args []string) error {
 		ui.Warning("Knock doesn't know these settings: %s", strings.Join(cfg.UnknownKeys, ", "))
 	}
 	return nil
+}
+
+func codeMaxAge(days int) string {
+	if days == 0 {
+		return "0" + ui.Dim.Render("  (codes never expire)")
+	}
+	return fmt.Sprint(days) + ui.Dim.Render("  (a new code after "+codeAge(days)+")")
 }
 
 func runSessions(ctx context.Context, cfg config.Config, args []string) error {
@@ -125,7 +140,11 @@ func runSessions(ctx context.Context, cfg config.Config, args []string) error {
 		return fmt.Errorf("couldn't open the recording: %w", err)
 	}
 	defer f.Close()
-	_, err = record.Play(ctx, f, os.Stdout, record.PlayOptions{Speed: *speed, MaxIdle: *idle})
+	// A recording can hold OSC 52 like any terminal output: replaying it
+	// must not write to (or read) this clipboard.
+	out := termio.NewClipboardWriter(os.Stdout)
+	_, err = record.Play(ctx, f, out, record.PlayOptions{Speed: *speed, MaxIdle: *idle})
+	_ = out.Flush()
 	fmt.Print("\x1b[0m\r\n")
 	if errors.Is(err, context.Canceled) {
 		return nil
@@ -149,7 +168,7 @@ func sessionsList(cfg config.Config) error {
 	rows := make([][]string, 0, len(all))
 	for i, e := range all {
 		m := e.Meta
-		who := m.Peer.Name
+		who := termio.CleanText(m.Peer.Name)
 		if who != "" && !m.Peer.Verified {
 			who += " (not verified)"
 		}

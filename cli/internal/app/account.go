@@ -11,6 +11,7 @@ import (
 
 	"github.com/idestis/knock/cli/internal/auth"
 	"github.com/idestis/knock/cli/internal/config"
+	"github.com/idestis/knock/cli/internal/state"
 	"github.com/idestis/knock/cli/internal/ui"
 )
 
@@ -19,6 +20,10 @@ var providerLabels = map[string]string{"google": "Google", "github": "GitHub"}
 func runLogin(ctx context.Context, cfg config.Config, args []string) error {
 	if len(args) > 1 {
 		return errors.New("usage: knock login [google|github]")
+	}
+	origin, err := state.Origin(cfg.Relay)
+	if err != nil {
+		return err
 	}
 	offered, err := auth.Providers(ctx, httpClient, cfg.Relay)
 	if err != nil {
@@ -67,7 +72,8 @@ func runLogin(ctx context.Context, cfg config.Config, args []string) error {
 	if err != nil {
 		return err
 	}
-	if err := auth.Save(tok); err != nil {
+	// The sign-in is kept for this relay only and never sent to another.
+	if err := auth.Save(origin, tok); err != nil {
 		return err
 	}
 	who := tok.User.Name
@@ -92,12 +98,16 @@ func openBrowser(url string) error {
 }
 
 func runLogout(cfg config.Config) error {
-	_, ok, _ := auth.Load()
-	if err := auth.Delete(); err != nil {
+	origin, err := state.Origin(cfg.Relay)
+	if err != nil {
+		return err
+	}
+	_, ok, _ := auth.Load(origin)
+	if err := auth.Delete(origin); err != nil {
 		return err
 	}
 	if !ok {
-		ui.Say("You weren't signed in.")
+		ui.Say("You weren't signed in to %s.", origin)
 		return nil
 	}
 	ui.Say("Signed out. Knock will use %s %s from now on.", ui.Bold.Render(anonName()), ui.Warn.Render("(not verified)"))
@@ -105,7 +115,11 @@ func runLogout(cfg config.Config) error {
 }
 
 func runWhoami(cfg config.Config) error {
-	t, ok, err := auth.Load()
+	origin, err := state.Origin(cfg.Relay)
+	if err != nil {
+		return err
+	}
+	t, ok, err := auth.Load(origin)
 	if err != nil {
 		return err
 	}

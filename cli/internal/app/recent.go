@@ -10,6 +10,7 @@ import (
 
 	"github.com/idestis/knock/cli/internal/config"
 	"github.com/idestis/knock/cli/internal/state"
+	"github.com/idestis/knock/cli/internal/termio"
 	"github.com/idestis/knock/cli/internal/ui"
 	"github.com/idestis/knock/protocol"
 )
@@ -21,21 +22,27 @@ func runRecent(ctx context.Context, cfg config.Config, args []string) error {
 			if len(args) != 2 {
 				return errors.New("usage: knock recent rm <door>")
 			}
-			return recentRemove(args[1])
+			return recentRemove(cfg, args[1])
 		case "ls", "list":
 		default:
 			return fmt.Errorf("I don't know knock recent %s. Try knock recent or knock recent rm <door>", args[0])
 		}
 	}
 
-	r, err := state.LoadRecent()
+	// Doors joined through this relay only: their code hashes are never
+	// sent to another one.
+	store, err := state.ForRelay(cfg.Relay)
+	if err != nil {
+		return err
+	}
+	r, err := store.LoadRecent()
 	if err != nil {
 		return err
 	}
 	pruned := r.Prune(time.Now())
 	if len(r.Items) == 0 {
 		if pruned > 0 {
-			_ = state.SaveRecent(r)
+			_ = store.SaveRecent(r)
 		}
 		ui.Say("No recent doors yet. Knock on one with %s.", ui.Bold.Render("knock <door> <code>"))
 		return nil
@@ -73,6 +80,7 @@ func runRecent(ctx context.Context, cfg config.Config, args []string) error {
 		it := &r.Items[i]
 		e, ok := statuses[it.DoorID]
 		status := "unknown"
+		changedOwner := false
 		if online && ok {
 			status = e.Status
 			if status == protocol.PresenceCodeChanged {
@@ -82,16 +90,27 @@ func runRecent(ctx context.Context, cfg config.Config, args []string) error {
 			} else {
 				it.MismatchSince = nil
 				if e.Owner != nil && e.Owner.Name != "" {
-					it.OwnerName, it.Verified, it.Provider = e.Owner.Name, e.Owner.Verified, e.Owner.Provider
-				}
-				if e.Device != "" {
-					it.Device = e.Device
+					o := termio.CleanIdentity(*e.Owner)
+					if ownerChanged(*it, o) {
+						// Keep the owner you knew; knock warns when you go in.
+						changedOwner = true
+					} else {
+						it.OwnerName, it.Verified, it.Provider = o.Name, o.Verified, o.Provider
+						if e.Device != "" {
+							it.Device = termio.CleanText(e.Device)
+						}
+					}
+				} else if e.Device != "" {
+					it.Device = termio.CleanText(e.Device)
 				}
 			}
 		}
-		who := it.OwnerName
+		who := termio.CleanText(it.OwnerName)
 		if !it.Verified {
 			who += " (not verified)"
+		}
+		if changedOwner {
+			who += " (owner changed)"
 		}
 		codeCol := "code ok"
 		switch {
@@ -100,10 +119,10 @@ func runRecent(ctx context.Context, cfg config.Config, args []string) error {
 		case status == "unknown":
 			codeCol = ""
 		}
-		rows = append(rows, []string{it.DoorID, who, it.Device, statusLabel(status), codeCol, ago(it.LastSessionAt.Time)})
+		rows = append(rows, []string{termio.CleanText(it.DoorID), who, termio.CleanText(it.Device), statusLabel(status), codeCol, ago(it.LastSessionAt.Time)})
 		kinds = append(kinds, status)
 	}
-	if err := state.SaveRecent(r); err != nil {
+	if err := store.SaveRecent(r); err != nil {
 		ui.Warning("Couldn't save your recent doors: %v", err)
 	}
 
@@ -154,19 +173,23 @@ func statusLabel(s string) string {
 	return "? unknown"
 }
 
-func recentRemove(arg string) error {
+func recentRemove(cfg config.Config, arg string) error {
 	doorID, _, err := state.ParseShare([]string{arg})
 	if err != nil {
 		return err
 	}
-	r, err := state.LoadRecent()
+	store, err := state.ForRelay(cfg.Relay)
+	if err != nil {
+		return err
+	}
+	r, err := store.LoadRecent()
 	if err != nil {
 		return err
 	}
 	if !r.Remove(doorID) {
 		return fmt.Errorf("%s isn't in your recent doors", doorID)
 	}
-	if err := state.SaveRecent(r); err != nil {
+	if err := store.SaveRecent(r); err != nil {
 		return err
 	}
 	ui.Say("Forgot %s.", doorID)

@@ -39,8 +39,11 @@ type Config struct {
 	GuestVerifiedOnly bool
 	KnockNotch        bool
 	KnockTimeout      int
-	ShellCommand      string
-	UnknownKeys       []string
+	// CodeMaxAgeDays replaces a code older than this when the door opens or
+	// sits idle, never during a session. 0 keeps a code until new-code.
+	CodeMaxAgeDays int
+	ShellCommand   string
+	UnknownKeys    []string
 }
 
 // Inputs are the sources Load combines. Zero values mean "not given".
@@ -53,8 +56,11 @@ type Inputs struct {
 var known = map[string]bool{
 	"relay.url": true, "auth.domain": true, "sessions.save": true, "sessions.dir": true,
 	"sessions.retention_days": true, "guest.input": true, "guest.verified_only": true, "knock.notch": true,
-	"knock.timeout_seconds": true, "shell.command": true,
+	"knock.timeout_seconds": true, "shell.command": true, "door.code_max_age_days": true,
 }
+
+// DefaultCodeMaxAgeDays is door.code_max_age_days when it isn't set.
+const DefaultCodeMaxAgeDays = 7
 
 // Load builds the effective config. Relay URL precedence:
 // --relay flag > KNOCK_RELAY > config.toml [relay] url > DefaultRelay.
@@ -62,7 +68,8 @@ func Load(in Inputs) (Config, error) {
 	if in.Env == nil {
 		in.Env = os.Getenv
 	}
-	c := Config{SessionsDir: "", RetentionDays: 30, GuestInput: "allow", KnockNotch: true, KnockTimeout: 60}
+	c := Config{SessionsDir: "", RetentionDays: 30, GuestInput: "allow", KnockNotch: true, KnockTimeout: 60,
+		CodeMaxAgeDays: DefaultCodeMaxAgeDays}
 	path := in.File
 	if path == "" {
 		p, err := state.Path("config.toml")
@@ -131,6 +138,13 @@ func Load(in Inputs) (Config, error) {
 			c.KnockTimeout = n
 		}
 	}
+	if v, ok := kv["door.code_max_age_days"]; ok {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 0 {
+			return c, fmt.Errorf("%s: door.code_max_age_days must be a whole number of days (0 means never)", path)
+		}
+		c.CodeMaxAgeDays = n
+	}
 	if c.SessionsDir == "" {
 		d, err := state.Path("sessions")
 		if err != nil {
@@ -152,6 +166,11 @@ func Load(in Inputs) (Config, error) {
 	c.Relay = strings.TrimRight(c.Relay, "/")
 	if !strings.HasPrefix(c.Relay, "http://") && !strings.HasPrefix(c.Relay, "https://") {
 		return c, fmt.Errorf("the relay address %q needs to start with https:// or http://", c.Relay)
+	}
+	// Door, Recent list and sign-in are kept per relay origin, so the
+	// address has to have one.
+	if _, err := state.Origin(c.Relay); err != nil {
+		return c, err
 	}
 	return c, nil
 }

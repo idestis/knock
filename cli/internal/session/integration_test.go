@@ -169,8 +169,28 @@ func TestSharedShellThroughRelay(t *testing.T) {
 	_, _ = guestKeys.Write([]byte("echo guest-$((40+2))\r"))
 	waitFor(t, "guest command output at the guest", func() bool { return strings.Contains(guestOut.String(), "guest-42") })
 	waitFor(t, "guest command output at the host", func() bool { return strings.Contains(hostOut.String(), "guest-42") })
+	// The host's shell can't set the guest's clipboard: OSC 52 is dropped,
+	// the text around it arrives.
+	_, _ = guestKeys.Write([]byte(`printf 'clip-\033]52;c;aGk=\007%s\n' ok` + "\r"))
+	waitFor(t, "output around an OSC 52 at the guest", func() bool { return strings.Contains(guestOut.String(), "clip-ok") })
+	if strings.Contains(guestOut.String(), "\x1b]52") {
+		t.Fatal("OSC 52 reached the guest's terminal")
+	}
+	if !strings.Contains(hostOut.String(), "\x1b]52") {
+		t.Fatal("the host's own terminal should still get the shell's output untouched")
+	}
 	if !strings.Contains(hostOut.String(), "is in your shell") {
 		t.Fatalf("host status line missing: %q", hostOut.String())
+	}
+
+	// Keys the shell doesn't echo still show on the host's status line (rule 5).
+	_, _ = guestKeys.Write([]byte("stty -echo; read x; stty echo; echo read-$((1+2))\r"))
+	time.Sleep(200 * time.Millisecond)
+	_, _ = guestKeys.Write([]byte("hush42\r"))
+	waitFor(t, "the read to finish", func() bool { return strings.Contains(guestOut.String(), "read-3") })
+	waitFor(t, "non-echoed keys on the host's status line", func() bool { return strings.Contains(hostOut.String(), "hush42⏎") })
+	if strings.Contains(guestOut.String(), "hush42") {
+		t.Fatal("the shell echoed the hidden input, so this test proves nothing")
 	}
 
 	// Hands off: guest typing no longer reaches the shell.

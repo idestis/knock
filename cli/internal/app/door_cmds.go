@@ -21,7 +21,11 @@ func runClose(ctx context.Context, cfg config.Config, args []string) error {
 	if len(args) > 0 {
 		return errors.New("usage: knock close")
 	}
-	d, ok, err := state.LoadDoor()
+	store, err := state.ForRelay(cfg.Relay)
+	if err != nil {
+		return err
+	}
+	d, ok, err := store.LoadDoor()
 	if err != nil {
 		return err
 	}
@@ -36,8 +40,10 @@ func runClose(ctx context.Context, cfg config.Config, args []string) error {
 	defer c.Close()
 	rctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	open := protocol.DoorOpen{DoorID: d.DoorID, DoorKey: d.DoorKey, Device: deviceName(), Code: d.Record()}
-	if _, err := c.Request(rctx, protocol.TypeDoorOpen, open); err != nil {
+	if _, err := openDoor(rctx, c, store, d); err != nil {
+		if errors.Is(err, errCodeStale) {
+			return err
+		}
 		return relayError(err)
 	}
 	if _, err := c.Request(rctx, protocol.TypeDoorClose, nil); err != nil {
@@ -49,11 +55,15 @@ func runClose(ctx context.Context, cfg config.Config, args []string) error {
 }
 
 // runCopy puts the code on the clipboard without printing it.
-func runCopy(args []string) error {
+func runCopy(cfg config.Config, args []string) error {
 	if len(args) > 0 {
 		return errors.New("usage: knock copy")
 	}
-	d, err := state.LoadOrCreateDoor()
+	store, err := state.ForRelay(cfg.Relay)
+	if err != nil {
+		return err
+	}
+	d, err := store.LoadOrCreateDoor()
 	if err != nil {
 		return err
 	}
