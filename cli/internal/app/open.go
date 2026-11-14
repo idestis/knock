@@ -8,6 +8,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/idestis/knock/cli/internal/auth"
 	"github.com/idestis/knock/cli/internal/config"
 	"github.com/idestis/knock/cli/internal/session"
 	"github.com/idestis/knock/cli/internal/state"
@@ -161,7 +162,9 @@ func (h *host) nextPrompt(ctx context.Context) {
 	if timeout <= 0 || timeout > time.Duration(h.cfg.KnockTimeout)*time.Second {
 		timeout = time.Duration(h.cfg.KnockTimeout) * time.Second
 	}
-	who := ui.Knocker{Name: k.From.Name, Email: k.From.Email, Provider: k.From.Provider, Verified: k.From.Verified, Device: k.Device}
+	// Everything here comes from the relay's verified token, or is marked
+	// not verified; nothing the knocker typed passes as verified.
+	who := ui.Knocker{Name: k.From.Name, Detail: auth.Describe(k.From), Provider: k.From.Provider, Verified: k.From.Verified, Device: k.Device}
 	go func() { p.result <- ui.AskLetIn(pctx, who, timeout) }()
 }
 

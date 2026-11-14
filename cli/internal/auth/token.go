@@ -110,27 +110,38 @@ func Exchange(ctx context.Context, hc *http.Client, relay, code, verifier string
 	return t, nil
 }
 
-// Providers asks the relay which sign-in options it offers.
-func Providers(ctx context.Context, hc *http.Client, relay string) ([]string, error) {
+// Providers asks the relay which sign-in options it offers and whether it
+// requires sign-in.
+func Providers(ctx context.Context, hc *http.Client, relay string) (protocol.AuthProviders, error) {
+	var out protocol.AuthProviders
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, relay+"/v1/auth/providers", nil)
 	if err != nil {
-		return nil, err
+		return out, err
 	}
 	resp, err := hc.Do(req)
 	if err != nil {
-		return nil, unreachable(relay, err)
+		return out, unreachable(relay, err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("the relay answered %s when asked how to sign in", resp.Status)
-	}
-	var out struct {
-		Providers []string `json:"providers"`
+		return out, fmt.Errorf("the relay answered %s when asked how to sign in", resp.Status)
 	}
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<16)).Decode(&out); err != nil {
-		return nil, err
+		return out, err
 	}
-	return out.Providers, nil
+	return out, nil
+}
+
+// Describe is how a signed-in identity reads in one line: the email, or
+// the GitHub username when there is no verified email.
+func Describe(id protocol.Identity) string {
+	switch {
+	case id.Email != "":
+		return id.Email
+	case id.Login != "":
+		return "@" + id.Login
+	}
+	return ""
 }
 
 func postJSON(ctx context.Context, hc *http.Client, url string, in, out any) (int, error) {

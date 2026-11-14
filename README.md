@@ -132,7 +132,7 @@ In a session, press `Ctrl-]` then `q` to end it, or `Ctrl-]` then `h` to toggle 
 
 ## Sign-in is optional
 
-Knock works without an account: you knock with a name you type, and hosts see it marked *not verified*. Sign in with **Google** or **GitHub** to put a verified name and email on your knocks.
+Knock works without an account: you knock with a name you type, and hosts see it marked *not verified*. Sign in with **Google** or **GitHub** to put a verified name and email on your knocks. A relay with sign-in set up requires it by default.
 
 Sign-in goes through your relay (OAuth with PKCE), so provider secrets stay on the server. The relay issues its own tokens: a one-hour access token and a 90-day refresh token that renews on every use. Both live in the macOS Keychain, so you stay signed in for as long as you keep using Knock.
 
@@ -148,11 +148,11 @@ Kubernetes: [`deploy/knock-relay.yaml`](deploy/knock-relay.yaml) (with a Tailsca
 |---|---|
 | `KNOCK_PUBLIC_URL` | The relay's public URL, used for OAuth callbacks |
 | `KNOCK_TOKEN_SECRET` | 32+ random bytes that sign tokens. Keep it stable so sign-ins survive restarts |
-| `KNOCK_ALLOW_ANONYMOUS` | `true` by default. Set to `false` to require sign-in |
+| `KNOCK_ALLOW_ANONYMOUS` | Unset: anonymous when no provider is set, sign-in required once one is. `true` keeps anonymous use next to sign-in |
 | `KNOCK_GOOGLE_CLIENT_ID`, `_SECRET`, `KNOCK_GOOGLE_DOMAIN` | Google sign-in, optionally limited to one Workspace domain |
-| `KNOCK_GITHUB_CLIENT_ID`, `_SECRET`, `KNOCK_GITHUB_ORG` | GitHub sign-in, optionally limited to members of one org |
+| `KNOCK_GITHUB_CLIENT_ID`, `_SECRET`, `KNOCK_GITHUB_ORG` | GitHub sign-in, optionally limited to active members of one org |
 
-OAuth callback URLs to register: `https://<relay>/v1/auth/google/callback` and `https://<relay>/v1/auth/github/callback`.
+OAuth callback URLs to register: `https://<relay>/v1/auth/google/callback` and `https://<relay>/v1/auth/github/callback`. Step-by-step setup for both providers is in [docs/RELAY_SIGN_IN.md](docs/RELAY_SIGN_IN.md).
 
 v0.1 keeps relay state in memory, so run a single replica. The multi-replica design (DynamoDB conditional writes and pod-to-pod forwarding) is in [DESIGN.md](DESIGN.md#8-relay-knockd).
 

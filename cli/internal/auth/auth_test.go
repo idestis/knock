@@ -28,7 +28,7 @@ func fakeRelay(t *testing.T, refreshStatus int) *httptest.Server {
 			RefreshUntil: time.Now().Add(90 * 24 * time.Hour).Unix(), User: protocol.Identity{ID: "github:1", Name: "Maya Patel", Provider: "github", Verified: true}})
 	}
 	mux.HandleFunc("GET /v1/auth/providers", func(w http.ResponseWriter, r *http.Request) {
-		_, _ = io.WriteString(w, `{"providers":["google","github"]}`)
+		_, _ = io.WriteString(w, `{"providers":["google","github"],"sign_in_required":true}`)
 	})
 	mux.HandleFunc("GET /v1/auth/{p}/start", func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
@@ -66,8 +66,8 @@ func TestLoginPKCE(t *testing.T) {
 	keyring.MockInit()
 	srv := fakeRelay(t, 200)
 	ps, err := Providers(context.Background(), srv.Client(), srv.URL)
-	if err != nil || strings.Join(ps, ",") != "google,github" {
-		t.Fatalf("providers %v %v", ps, err)
+	if err != nil || strings.Join(ps.Providers, ",") != "google,github" || !ps.SignInRequired {
+		t.Fatalf("providers %+v %v", ps, err)
 	}
 	tok, err := Login(context.Background(), LoginOptions{Relay: srv.URL, Provider: "github", Timeout: 5 * time.Second,
 		Open: func(u string) error {
@@ -134,5 +134,61 @@ func TestResolve(t *testing.T) {
 	r = Resolve(ctx, http.DefaultClient, "http://127.0.0.1:1", now)
 	if !r.Signed || r.Tokens.AccessToken != "at" {
 		t.Fatalf("valid token dropped on network error: %+v", r)
+	}
+
+	// Past the refresh deadline: dropped without asking the relay.
+	_ = Save(Tokens{AccessToken: "at", RefreshToken: "rt", ExpiresAt: now.Add(-time.Hour).Unix(), RefreshUntil: now.Add(-time.Minute).Unix()})
+	r = Resolve(ctx, http.DefaultClient, "http://127.0.0.1:1", now)
+	if r.Signed || !strings.Contains(r.Warning, "expired") {
+		t.Fatalf("want expired: %+v", r)
+	}
+	if _, ok, _ := Load(); ok {
+		t.Fatal("expired sign-in should be deleted")
+	}
+}
+
+func TestForceRefresh(t *testing.T) {
+	ctx := context.Background()
+	now := time.Now()
+	keyring.MockInit()
+
+	// The relay refused a token that still looks valid locally (clock skew,
+	// rotated secret): refresh even though it isn't due.
+	srv := fakeRelay(t, 200)
+	stale := Tokens{AccessToken: "at", RefreshToken: "rt", ExpiresAt: now.Add(time.Hour).Unix()}
+	_ = Save(stale)
+	if r := ForceRefresh(ctx, srv.Client(), srv.URL, stale, now); !r.Signed || r.Tokens.AccessToken != "at-new" {
+		t.Fatalf("not refreshed: %+v", r)
+	}
+
+	// The relay refuses the refresh too: signed out, so the next dial is anonymous.
+	bad := fakeRelay(t, 401)
+	_ = Save(stale)
+	if r := ForceRefresh(ctx, bad.Client(), bad.URL, stale, now); r.Signed || r.Warning == "" {
+		t.Fatalf("want signed out: %+v", r)
+	}
+	if _, ok, _ := Load(); ok {
+		t.Fatal("rejected sign-in should be deleted")
+	}
+
+	// Relay unreachable: the forced refresh can't keep a token the relay refused.
+	_ = Save(stale)
+	if r := ForceRefresh(ctx, http.DefaultClient, "http://127.0.0.1:1", stale, now); r.Signed {
+		t.Fatalf("kept a refused token: %+v", r)
+	}
+}
+
+func TestDescribe(t *testing.T) {
+	for _, tc := range []struct {
+		id   protocol.Identity
+		want string
+	}{
+		{protocol.Identity{Email: "m@acme.dev", Login: "maya"}, "m@acme.dev"},
+		{protocol.Identity{Login: "maya"}, "@maya"},
+		{protocol.Identity{Name: "Guest"}, ""},
+	} {
+		if got := Describe(tc.id); got != tc.want {
+			t.Errorf("Describe(%+v) = %q, want %q", tc.id, got, tc.want)
+		}
 	}
 }

@@ -12,7 +12,7 @@ import (
 // Knocker is who is at the door, as the relay told us.
 type Knocker struct {
 	Name     string
-	Email    string
+	Detail   string // verified email, or @login for GitHub without one
 	Provider string // google, github, anonymous
 	Verified bool
 	Device   string
@@ -83,8 +83,8 @@ func (m letIn) View() tea.View {
 	var who string
 	if m.k.Verified {
 		who = Good.Render("✓ verified") + Dim.Render(" with "+providerName(m.k.Provider))
-		if m.k.Email != "" {
-			who += Dim.Render(" · " + m.k.Email)
+		if m.k.Detail != "" {
+			who += Dim.Render(" · " + m.k.Detail)
 		}
 	} else {
 		who = Warn.Render("⚠ not verified") + Dim.Render(": they didn't sign in, so the name is whatever they typed")

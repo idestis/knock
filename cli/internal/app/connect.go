@@ -122,8 +122,8 @@ func slugDevice(s string) string {
 func whoLine(id protocol.Identity) string {
 	if id.Verified {
 		s := "Signed in as " + ui.Bold.Render(id.Name)
-		if id.Email != "" {
-			s += ui.Dim.Render(" (" + id.Email + ")")
+		if d := auth.Describe(id); d != "" {
+			s += ui.Dim.Render(" (" + d + ")")
 		}
 		return s + "."
 	}

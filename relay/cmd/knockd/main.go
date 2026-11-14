@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -30,6 +31,11 @@ func env(k, def string) string {
 	return def
 }
 
+func fatal(msg string) {
+	slog.Error(msg)
+	os.Exit(1)
+}
+
 func main() {
 	addr := flag.String("addr", env("KNOCK_ADDR", ":8787"), "listen address")
 	flag.Parse()
@@ -43,17 +49,34 @@ func main() {
 		_, _ = rand.Read(secret)
 	}
 	signer := auth.NewSigner(secret)
-	authSvc := auth.NewService(auth.Config{
+	authCfg := auth.Config{
 		PublicURL:    env("KNOCK_PUBLIC_URL", "http://127.0.0.1:8787"),
 		GoogleID:     os.Getenv("KNOCK_GOOGLE_CLIENT_ID"),
 		GoogleSecret: os.Getenv("KNOCK_GOOGLE_CLIENT_SECRET"),
-		GoogleDomain: os.Getenv("KNOCK_GOOGLE_DOMAIN"),
+		GoogleDomain: strings.TrimSpace(os.Getenv("KNOCK_GOOGLE_DOMAIN")),
 		GitHubID:     os.Getenv("KNOCK_GITHUB_CLIENT_ID"),
 		GitHubSecret: os.Getenv("KNOCK_GITHUB_CLIENT_SECRET"),
-		GitHubOrg:    os.Getenv("KNOCK_GITHUB_ORG"),
-	}, signer)
+		GitHubOrg:    strings.TrimSpace(os.Getenv("KNOCK_GITHUB_ORG")),
+	}
+	providers := 0
+	for _, p := range [][2]string{{authCfg.GoogleID, authCfg.GoogleSecret}, {authCfg.GitHubID, authCfg.GitHubSecret}} {
+		if p[0] != "" && p[1] == "" {
+			fatal("a sign-in client ID is set without its secret (KNOCK_*_CLIENT_SECRET)")
+		}
+		if p[0] != "" {
+			providers++
+		}
+	}
+	allowAnon, err := allowAnonymous(os.Getenv("KNOCK_ALLOW_ANONYMOUS"), providers)
+	if err != nil {
+		fatal(err.Error())
+	}
+	if providers > 0 && !strings.HasPrefix(authCfg.PublicURL, "https://") {
+		slog.Warn("KNOCK_PUBLIC_URL is not https; providers will only accept it for local testing", "public_url", authCfg.PublicURL)
+	}
+	authCfg.SignInRequired = !allowAnon
+	authSvc := auth.NewService(authCfg, signer)
 
-	allowAnon, _ := strconv.ParseBool(env("KNOCK_ALLOW_ANONYMOUS", "true"))
 	timeout, _ := strconv.Atoi(env("KNOCK_KNOCK_TIMEOUT_SECONDS", "60"))
 	h := hub.New(hub.Config{
 		AllowAnonymous: allowAnon,
@@ -69,7 +92,8 @@ func main() {
 	mux.HandleFunc("GET /v1/info", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"version": version, "protocol": protocol.Version, "allows_anonymous": allowAnon, "auth_providers": authSvc.Providers(),
+			"version": version, "protocol": protocol.Version, "allows_anonymous": allowAnon, "sign_in_required": !allowAnon,
+			"auth_providers": authSvc.Providers(),
 		})
 	})
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("ok")) })

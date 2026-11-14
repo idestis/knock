@@ -15,11 +15,15 @@ metadata:
   namespace: knock
 type: Opaque
 stringData:
-  # 32+ random bytes: openssl rand -base64 48. Keeps sign-ins valid across restarts.
+  # 32+ random bytes: openssl rand -base64 48. Keeps sign-ins valid across
+  # restarts; changing it signs everyone out.
   KNOCK_TOKEN_SECRET: "change-me"
-  KNOCK_GOOGLE_CLIENT_ID: ""
-  KNOCK_GOOGLE_CLIENT_SECRET: ""
-  KNOCK_GITHUB_CLIENT_ID: ""
+  # Sign-in, brokered by the relay. Setup: docs/RELAY_SIGN_IN.md.
+  # Callback URLs: KNOCK_PUBLIC_URL + /v1/auth/google/callback and /v1/auth/github/callback.
+  # Leave both empty for an anonymous-only relay.
+  KNOCK_GOOGLE_CLIENT_ID: ""      # e.g. 1234567890-abc.apps.googleusercontent.com
+  KNOCK_GOOGLE_CLIENT_SECRET: ""  # e.g. GOCSPX-...
+  KNOCK_GITHUB_CLIENT_ID: ""      # e.g. Ov23li...
   KNOCK_GITHUB_CLIENT_SECRET: ""
 ---
 apiVersion: apps/v1
@@ -50,9 +54,13 @@ spec:
             - secretRef: {name: knock-relay}
           env:
             - {name: KNOCK_PUBLIC_URL, value: "https://knock.example.ts.net"}
-            - {name: KNOCK_ALLOW_ANONYMOUS, value: "true"}
-            - {name: KNOCK_GOOGLE_DOMAIN, value: ""}
-            - {name: KNOCK_GITHUB_ORG, value: ""}
+            # Empty: anonymous only when no provider is set; once one is, sign-in
+            # is required. "true" keeps anonymous use next to sign-in.
+            - {name: KNOCK_ALLOW_ANONYMOUS, value: ""}
+            # Optional restrictions, checked at sign-in. Changing one signs out
+            # everyone who signed in under the old value.
+            - {name: KNOCK_GOOGLE_DOMAIN, value: ""}   # e.g. example.com (Workspace accounts only)
+            - {name: KNOCK_GITHUB_ORG, value: ""}      # e.g. example-org (active members only)
             - {name: KNOCK_DRAIN_GRACE, value: "50s"}
           readinessProbe:
             httpGet: {path: /readyz, port: http}

@@ -20,10 +20,11 @@ func runLogin(ctx context.Context, cfg config.Config, args []string) error {
 	if len(args) > 1 {
 		return errors.New("usage: knock login [google|github]")
 	}
-	providers, err := auth.Providers(ctx, httpClient, cfg.Relay)
+	offered, err := auth.Providers(ctx, httpClient, cfg.Relay)
 	if err != nil {
 		return err
 	}
+	providers := offered.Providers
 	if len(providers) == 0 {
 		ui.Say("This relay has no sign-in set up. You can still use Knock without signing in.")
 		return nil
@@ -70,8 +71,8 @@ func runLogin(ctx context.Context, cfg config.Config, args []string) error {
 		return err
 	}
 	who := tok.User.Name
-	if tok.User.Email != "" {
-		who += " (" + tok.User.Email + ")"
+	if d := auth.Describe(tok.User); d != "" {
+		who += " (" + d + ")"
 	}
 	ui.Say("%s Signed in as %s with %s.", ui.Good.Render("✓"), ui.Bold.Render(who), label)
 	return nil
@@ -109,6 +110,13 @@ func runWhoami(cfg config.Config) error {
 		return err
 	}
 	if !ok {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		if p, err := auth.Providers(ctx, httpClient, cfg.Relay); err == nil && p.SignInRequired {
+			ui.Say("You're not signed in, and this relay needs you to sign in. Run knock login.")
+			ui.Note("Relay: %s", cfg.Relay)
+			return nil
+		}
 		ui.Say("You're not signed in. People see you as %s %s.", ui.Bold.Render(anonName()), ui.Warn.Render("(not verified)"))
 		ui.Note("Run knock login to show a verified name. Relay: %s", cfg.Relay)
 		return nil
@@ -119,8 +127,8 @@ func runWhoami(cfg config.Config) error {
 		label = u.Provider
 	}
 	line := "Signed in as " + ui.Bold.Render(u.Name)
-	if u.Email != "" {
-		line += " (" + u.Email + ")"
+	if d := auth.Describe(u); d != "" {
+		line += " (" + d + ")"
 	}
 	ui.Say("%s with %s. %s", line, label, ui.Good.Render("✓ verified"))
 	until := time.Unix(t.RefreshUntil, 0)

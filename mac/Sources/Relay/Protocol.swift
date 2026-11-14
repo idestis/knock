@@ -99,9 +99,33 @@ nonisolated struct Identity: Codable, Sendable, Hashable {
     var id: String
     var name: String
     var email: String?
+    var login: String?  // GitHub username
     var provider: String
     var verified: Bool
     var avatar: String?
+
+    var providerLabel: String {
+        switch provider {
+        case "github": "GitHub"
+        case "google": "Google"
+        default: provider
+        }
+    }
+
+    /// The verified email, or @login for GitHub without one. nil when anonymous:
+    /// nothing an anonymous knocker typed should read as checked.
+    var verifiedDetail: String? {
+        guard verified else { return nil }
+        if let email, !email.isEmpty { return email }
+        if let login, !login.isEmpty { return "@" + login }
+        return nil
+    }
+
+    /// "sam@acme.dev · GitHub", or just "GitHub". nil when anonymous.
+    var verifiedLine: String? {
+        guard verified else { return nil }
+        return [verifiedDetail, providerLabel].compactMap { $0 }.joined(separator: " · ")
+    }
 
     var initials: String {
         let parts = name.split(whereSeparator: { $0 == " " || $0 == "." || $0 == "-" || $0 == "_" })
@@ -110,6 +134,12 @@ nonisolated struct Identity: Codable, Sendable, Hashable {
     }
 
     var firstName: String { name.split(separator: " ").first.map(String.init) ?? name }
+}
+
+/// GET /v1/auth/providers.
+nonisolated struct AuthProviders: Codable, Sendable, Equatable {
+    var providers: [String]
+    var signInRequired: Bool?
 }
 
 nonisolated struct Welcome: Codable, Sendable {
