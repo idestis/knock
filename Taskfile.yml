@@ -275,6 +275,13 @@ tasks:
         create-dmg --volname Knock --window-size 540 360 --icon-size 96 \
           --icon Knock.app 140 170 --app-drop-link 400 170 --hide-extension Knock.app \
           "$out" {{.DIST}}/Knock.app
+        # create-dmg shows the volume in Finder while it lays out icons; anything
+        # pasted or dropped there ends up in the DMG. Refuse a DMG with extras.
+        mnt=$(mktemp -d)
+        hdiutil attach -readonly -nobrowse -noautoopen -mountpoint "$mnt" "$out" >/dev/null
+        extra=$(ls -A "$mnt" | grep -vxE 'Knock\.app|Applications|\.DS_Store|\.background|\.fseventsd|\.VolumeIcon\.icns' || true)
+        hdiutil detach "$mnt" >/dev/null
+        if [ -n "$extra" ]; then echo "The DMG has unexpected files: $extra. Run the task again and leave its Finder window alone."; rm -f "$out"; exit 1; fi
         id=$(security find-identity -v -p codesigning | awk -F'"' '/Developer ID Application/ {print $2; exit}')
         codesign --force --timestamp --sign "$id" "$out"
 
