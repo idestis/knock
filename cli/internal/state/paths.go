@@ -14,8 +14,11 @@ const (
 	FileMode = 0o600
 )
 
-// Dir is ~/.knock.
+// Dir is ~/.knock, or $KNOCK_HOME when set (the same override Knock.app honours).
 func Dir() (string, error) {
+	if d := os.Getenv("KNOCK_HOME"); d != "" {
+		return d, nil
+	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("find your home folder: %w", err)

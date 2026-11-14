@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -45,8 +46,11 @@ func runConfig(cfg config.Config, args []string) error {
 		fmt.Println(cfg.Path)
 		return nil
 	}
+	if len(args) > 0 && (args[0] == "set" || args[0] == "unset") {
+		return runConfigSet(cfg, args)
+	}
 	if len(args) > 0 {
-		return errors.New("usage: knock config [path]")
+		return errors.New("usage: knock config [set <key> <value> | unset <key> | path]")
 	}
 	_, err := os.Stat(cfg.Path)
 	file := cfg.Path
@@ -171,4 +175,40 @@ func humanSize(n int64) string {
 		return fmt.Sprintf("%.1f KB", float64(n)/(1<<10))
 	}
 	return fmt.Sprintf("%d B", n)
+}
+
+func runConfigSet(cfg config.Config, args []string) error {
+	keys := make([]string, 0, len(config.Settable))
+	for k := range config.Settable {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	if args[0] == "unset" {
+		if len(args) != 2 {
+			return errors.New("usage: knock config unset <key>")
+		}
+		if _, ok := config.Settable[args[1]]; !ok {
+			return fmt.Errorf("I don't know the setting %q. Settings: %s", args[1], strings.Join(keys, ", "))
+		}
+		if err := config.Set(cfg.Path, args[1], ""); err != nil {
+			return err
+		}
+		ui.Say("%s is back to its default.", args[1])
+		return nil
+	}
+	if len(args) < 3 {
+		return fmt.Errorf("usage: knock config set <key> <value>. Settings: %s", strings.Join(keys, ", "))
+	}
+	v, err := config.Validate(args[1], strings.Join(args[2:], " "))
+	if err != nil {
+		return err
+	}
+	if err := config.Set(cfg.Path, args[1], v); err != nil {
+		return err
+	}
+	ui.Say("Set %s to %s.", args[1], v)
+	if args[1] == "relay.url" {
+		ui.Note("Knock.app reads this too, unless you changed the relay in its Settings.")
+	}
+	return nil
 }

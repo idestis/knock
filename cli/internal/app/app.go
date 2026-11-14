@@ -23,11 +23,14 @@ const usage = `knock shares one shell between two people, through a relay.
 
 Host:
   knock open [--tmux] [--view-only]   Open your door and wait for a knock
+  knock close                         Close your door, wherever it's open (app or terminal)
+  knock copy                          Copy your code to the clipboard
   knock new-code                      Replace your code (cuts off everyone with the old one)
 
 Guest:
-  knock <door> [code]                 Knock on a door (code optional for recent doors)
-  knock join <door> [code]            The same, spelled out
+  knock <code>                        Knock, like: knock BVJY 4821 KQ
+  knock <door>                        Knock on a door from your recent list, no code needed
+  knock join <code>                   The same, spelled out
   knock recent                        Doors you've been in, and whether they're open
   knock recent rm <door>              Forget a door
 
@@ -40,8 +43,12 @@ Recordings:
   knock sessions ls                   List saved sessions
   knock sessions play <id>            Replay one
 
-Other:
+Settings and updates:
   knock config                        Show the settings in effect
+  knock config set <key> <value>      Change a setting, like: knock config set relay.url https://…
+  knock config unset <key>            Go back to the default
+  knock config path                   Print where the config file is
+  knock update [--check]              Update knock from GitHub Releases
   knock version                       Show the version
 
 Global flags:
@@ -65,6 +72,15 @@ func Main(args []string) int {
 		fmt.Printf("knock %s (protocol %d)\n", Version, protocolVersion())
 		return 0
 	}
+	if args[0] == "update" {
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		if err := runUpdate(ctx, args[1:]); err != nil {
+			ui.Failure(sentence(err.Error()))
+			return 1
+		}
+		return 0
+	}
 
 	cfg, err := config.Load(config.Inputs{Flag: relayFlag})
 	if err != nil {
@@ -86,6 +102,10 @@ func Main(args []string) int {
 		err = runRecent(ctx, cfg, rest)
 	case "new-code":
 		err = runNewCode(cfg, rest)
+	case "close":
+		err = runClose(ctx, cfg, rest)
+	case "copy":
+		err = runCopy(rest)
 	case "login":
 		err = runLogin(ctx, cfg, rest)
 	case "logout":

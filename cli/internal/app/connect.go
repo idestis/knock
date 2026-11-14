@@ -7,8 +7,10 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/idestis/knock/cli/internal/auth"
 	"github.com/idestis/knock/cli/internal/config"
@@ -79,17 +81,41 @@ func anonName() string {
 	return "Guest"
 }
 
-// deviceName is this machine's short host name, like "maya-mbp".
+// deviceName names this machine the same way Knock.app does: the Mac's
+// computer name as a slug ("Maya's MacBook Pro" -> "mayas-macbook-pro"),
+// falling back to the short host name elsewhere.
 func deviceName() string {
-	h, err := os.Hostname()
-	if err != nil || h == "" {
+	name := ""
+	if runtime.GOOS == "darwin" {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		if out, err := exec.CommandContext(ctx, "scutil", "--get", "ComputerName").Output(); err == nil {
+			name = strings.TrimSpace(string(out))
+		}
+	}
+	if name == "" {
+		h, err := os.Hostname()
+		if err != nil || h == "" {
+			return "unknown"
+		}
+		h = strings.TrimSuffix(h, ".local")
+		if i := strings.Index(h, "."); i > 0 {
+			h = h[:i]
+		}
+		name = h
+	}
+	return slugDevice(name)
+}
+
+// slugDevice matches Knock.app: lower case, apostrophes dropped, other
+// non-alphanumerics become single dashes.
+func slugDevice(s string) string {
+	s = strings.NewReplacer("'", "", "’", "").Replace(strings.ToLower(s))
+	parts := strings.FieldsFunc(s, func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsNumber(r) })
+	if len(parts) == 0 {
 		return "unknown"
 	}
-	h = strings.TrimSuffix(h, ".local")
-	if i := strings.Index(h, "."); i > 0 {
-		h = h[:i]
-	}
-	return strings.ToLower(h)
+	return strings.Join(parts, "-")
 }
 
 // whoLine describes the identity the relay gave us.
