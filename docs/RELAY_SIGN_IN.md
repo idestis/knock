@@ -97,4 +97,5 @@ knock whoami
 - Provider access tokens are used once to read the profile and dropped. The relay keeps no user database: the identity lives in its signed tokens.
 - Logs carry the provider and the user's stable ID (`github:123`, `google:456`), never tokens, codes, grants or provider responses.
 - Signing out deletes the tokens from the Keychain. Tokens are stateless, so the relay can't revoke one early; an access token stops working within the hour and a refresh token at its expiry, unless you rotate `KNOCK_TOKEN_SECRET`.
+- A sign-in only returns to `knock://auth/callback` (the app) or `http://127.0.0.1:PORT/callback` (the CLI). Each client address can start 30 sign-ins per 10 minutes; past that `/start` answers 429. The address is worked out as for knocks: the socket's address, or the first untrusted `X-Forwarded-For` hop when the request comes through a proxy listed in `KNOCK_TRUSTED_PROXIES`.
 - Membership is checked at sign-in. Someone removed from the org or domain keeps their sign-in until it lapses (90 days without using Knock) or you rotate `KNOCK_TOKEN_SECRET`.

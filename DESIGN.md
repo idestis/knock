@@ -34,7 +34,7 @@ Naming note: a well-known Linux port-knocking tool already ships binaries called
 | CLI | Go, Charm libraries (Bubble Tea v2, Lip Gloss v2, Bubbles v2) | Single static binary; good TUI pieces |
 | CLI PTY | `creack/pty`, `golang.org/x/term` | Standard Go PTY and raw-mode handling |
 | Relay | Go, WebSocket (`coder/websocket` or `gorilla/websocket`) | Shares the protocol package with the CLI |
-| State | DynamoDB, single table | Conditional writes give race-free coordination across replicas |
+| State | Door registrations in Valkey (or memory); knocks and sessions in the relay's memory | Lua-scripted conditional writes keep one key per door id; no cloud lock-in |
 | Identity | Google Workspace sign-in (OpenID Connect) | Real names on every knock; domain restriction |
 | Runtime | Kubernetes, 2 or more replicas, reachable only on the tailnet | No single point of failure |
 
@@ -91,8 +91,14 @@ What hashing does and does not buy: it keeps codes out of the database, logs and
 
 ### Limits
 
-- Five wrong codes per door in ten minutes, and ten per knocker in ten minutes, then a cooldown.
-- Twenty wrong codes against one door forces a new code on the host and tells them why.
+- Wrong hashes count the same whether they come from `knock.request` or `recent.check`, on a known door or an unknown one. Repeating the same wrong hash on the same door counts once. A hash from one of the door's last few codes is not a guess and doesn't count.
+- Ten wrong codes per knocker in ten minutes, then a cooldown.
+- Five wrong codes per door in ten minutes, then a cooldown. Each signed-in knocker has their own five, so one person's guesses can't lock out someone who has the code. Anonymous knockers can't be told apart and share five.
+- Twenty wrong codes against one door in an hour forces a new code on the host and tells them why. Thirty refuses every knock on that door for the rest of the hour.
+- A knocker is keyed by account when signed in, by IP when anonymous. The IP comes from `X-Forwarded-For` only when the connection is from a proxy listed in `KNOCK_TRUSTED_PROXIES`.
+- Twelve knocks per knocker per door in ten minutes, right code or not, and 60 `recent.check` per knocker in ten minutes. A host whose connection is backed up gets no new knocks until it catches up, rather than being dropped.
+- A knocker opens at most 20 new doors an hour. A door that has been closed for 24 hours with nobody watching it is forgotten.
+- `door.open` and `door.code.set` refuse a code older than the door's (a lower `code_version`, or the same one with a different hash) with `code_stale`, so an old copy of the door can't bring back a replaced code.
 - A pending knock expires after 60 seconds and counts as "Not now".
 
 ## 6. Recent sessions
@@ -108,7 +114,8 @@ The helper's main list is **Recent**, not a company-wide directory. It holds doo
 | Yes | Open | Online | Shown |
 | Yes | In a session | In a session, "Busy" | Hidden |
 | Yes | App closed or door shut | Offline | Hidden |
-| No | Not revealed | Code changed, "Ask for a new code" | Hidden |
+| No, it's from an earlier code | Not revealed | Code changed, "Ask for a new code" | Hidden |
+| No | Not revealed, and the same answer as a door that doesn't exist | Offline | Hidden |
 
 - Knocking from Recent sends the stored hash, so no retyping. If the host changed the code a moment earlier, the relay answers `code_mismatch` and the row flips to "Code changed".
 - When a host presses "New code", the relay pushes `door.code_changed` to connected clients holding the old hash, so the button disappears live.
@@ -170,32 +177,33 @@ One WebSocket per client at `wss://<relay>/v1/ws`. Control messages are JSON tex
 | binary frames | both ways | Terminal output and guest input |
 | `relay.draining` | relay to client | Reconnect elsewhere |
 
-Errors: `code_mismatch`, `door_offline`, `door_busy`, `rate_limited`, `denied`, `timeout`, `unauthorised`.
+Errors: `code_mismatch`, `code_stale`, `door_offline`, `door_busy`, `rate_limited`, `denied`, `timeout`, `unauthorised`.
 
 ### Running two or more replicas
 
 The host's socket may land on replica A and the helper's on replica B. Two things must hold: state changes are race-free, and the two sockets get joined.
 
-**State lives in DynamoDB, never in one replica's memory.** Every decision that could race is a conditional write.
+**Door registrations live in a store; everything else is in memory.** `KNOCK_STORE` picks `memory` (the default) or `valkey` (`KNOCK_VALKEY_URL`, a secret that is never logged). Knocks, sessions and rate limits stay in the replica's memory.
 
-| Item (PK / SK) | Fields | Notes |
+| Key | Fields | Notes |
 |---|---|---|
-| `DOOR#<id>` / `META` | owner, device, `salt`, `code_hash`, `code_version`, `conn_epoch` | One per door |
-| `DOOR#<id>` / `CONN` | replica address, `epoch`, state, `expires_at` | Which replica holds the host's socket; heartbeat every 15 s, expires after 45 s |
-| `DOOR#<id>` / `SESSION` | session id, guest, started, `expires_at` | At most one per door |
-| `KNOCK#<id>` / `META` | door, guest, `code_version`, `expires_at` | Pending knocks, 60 s |
-| `RATE#<door or user>` / `WINDOW` | counter, `expires_at` | Atomic `ADD` |
+| `knock:door:<id>` (hash) | `key` (sha256 of the door key), `ver` (code version), `seen`, `data` (owner, device, code record, last 4 code hashes, `claimed_at`) | Expires `KNOCK_DOOR_TTL` (default 24 h) after the last write; open doors refresh it every minute, so the id frees up a TTL after the host leaves |
 
-How each race is closed:
+- **Conditional writes.** Every write is a Lua script: it lands only if the id is free or held by the key the writer expects, and never lowers the code version for the same key. Two relays can't both hand out one id.
+- **Read-through.** `door.open`, `door.salt.get`, `recent.check` and `knock.request` load a door from the store when memory doesn't have it (after a restart), so salts, Recent and offline answers are the same as before. Writes go through on every door change and when the host leaves. Store I/O happens outside the hub's mutex; `door.open` is serialised per door id.
+- **Fail closed.** If the store can't answer, `door.open` fails (`rate_limited`, try again) rather than hand out an id; salt lookups and knocks fail the same way, and `recent.check` reads offline without spending anyone's wrong-code budget. A write that finds another key holding the id closes the door here.
+- **Signed claims.** `door.opened` carries a claim: `c1.<since>.<mac>`, an HMAC (key derived from `KNOCK_TOKEN_SECRET`, separate from tokens) over the door id, the time the key first held it, and sha256 of the door key. Clients keep it in `door.json` and send it with every `door.open`. When the relay holds the id for another key, a valid claim older than that key's hold wins: the holder gets `door.close` (`door_reclaimed`), its session ends, its knocks are cancelled and its watchers are told the code changed. This covers a memory store after a restart, or a store record that lapsed, where a past guest who knows the id and the code would otherwise open it first and pose as the host. A claim lasts as long as `KNOCK_TOKEN_SECRET`: with a random secret, claims die on restart.
+
+How each race is closed today (one replica):
 
 | Race | Resolution |
 |---|---|
-| A door reconnects to another replica while the old socket lingers | `conn_epoch` is incremented atomically on `META`; `CONN` is written only if the new epoch is higher. The old replica's next heartbeat fails its condition and it drops the stale socket. |
-| "New code" while a knock is in flight | Accepting is one transaction: check `code_version` equals the knock's, put `SESSION` if absent, set `CONN` to busy if the epoch still matches. If the code changed first, the transaction fails and the helper gets `code_mismatch`. |
-| Two helpers knock at once | Both knocks reach the host. The first "Let in" creates `SESSION`; the second fails the "if absent" condition and gets `door_busy`. |
-| A replica dies | Its `CONN` rows stop heartbeating and expire. Clients reconnect with backoff to a live replica. |
+| Two clients open a new id at once | `door.open` is serialised per id, and the store write is conditional: the second gets `door_taken`. |
+| A door reconnects while the old socket lingers | The newer socket wins; the old one gets `door.close` (`opened_elsewhere`). |
+| "New code" while a knock is in flight | Accepting checks the knock's `code_version` against the door's under the hub's mutex; if the code changed first, the helper gets `code_mismatch`. |
+| Two helpers knock at once | Both knocks reach the host. The first "Let in" starts the session; the second gets `door_busy`. |
 
-DynamoDB deletes expired items lazily, so every read also checks `expires_at` itself. Hash checks and accepts use consistent reads.
+**Several replicas (not built).** Knocks and sessions would need shared state too (pending knocks with a 60 s TTL, one session per door, a `conn_epoch` so a stale replica drops its socket), with the same conditional-write pattern in Valkey, plus atomic `INCR` counters for rate limits.
 
 **Joining the sockets. Proposed: pod-to-pod forwarding.** Each replica registers its pod address in `CONN`. When a knock arrives at replica B for a door held by A, B opens an internal stream to A and proxies the knock and then the session. Internal traffic uses mutual TLS and a NetworkPolicy that only admits relay pods. Alternatives are a pub/sub bus (Redis or NATS), which adds a component, or redirecting the helper to A, which needs per-pod addresses at the ingress.
 
@@ -205,8 +213,8 @@ DynamoDB deletes expired items lazily, so every read also checks `expires_at` it
 - Exposed only on the tailnet (Tailscale Kubernetes operator or an internal load balancer). Not on the public internet.
 - Ingress and load balancer idle timeouts raised for WebSockets; the relay pings every 20 seconds.
 - On `SIGTERM` a replica stops accepting, sends `relay.draining` to idle clients, and waits for live sessions up to the termination grace period before closing them. In v1 a session does not survive its replica; the clients show "Relay restarted, knock again".
-- DynamoDB access through the pod's service-account role. On-demand capacity, point-in-time recovery on.
-- Metrics: open doors, knocks by outcome, live sessions, forwarded bytes, conditional-write failures.
+- The door store is any Valkey (or Redis) the relay can reach; the URL comes from a Secret. Persistence on the Valkey side is optional: losing it only means hosts fall back on their claims.
+- Metrics: open doors, knocks by outcome, live sessions, forwarded bytes, store failures.
 
 ### Transport security
 
@@ -310,6 +318,7 @@ Each side can save a recording under `~/.knock/sessions/`.
 | `guest.verified_only` | `false` | Turn away knocks from people who aren't signed in, before the host is asked. It only ever declines |
 | `knock.notch` | `true` | Use the notch panel when available |
 | `knock.timeout_seconds` | `60` | How long a knock waits |
+| `door.code_max_age_days` | `7` | A code older than this is replaced when the door opens or sits idle, never during a session. `0` keeps a code until "New code" |
 | `shell.command` | the login shell | What the PTY runs |
 
 ## 13. Security summary
@@ -328,7 +337,7 @@ Each side can save a recording under `~/.knock/sessions/`.
 |---|---|---|
 | 0 | `protocol` package and a single-replica relay with in-memory state | Two test clients can knock, accept and exchange bytes |
 | 1 | Mac app: sign-in, home, in-window knock alert, shared shell, new code, copy code | Two Macs complete a session through the relay |
-| 2 | Relay on Kubernetes: DynamoDB state, two replicas, pod-to-pod forwarding, draining | Sessions work with host and helper on different replicas; killing a pod loses nothing but its live sessions |
+| 2 | Relay on Kubernetes: Valkey door store and signed claims (done), then shared knocks and sessions, two replicas, pod-to-pod forwarding, draining | Sessions work with host and helper on different replicas; killing a pod loses nothing but its live sessions |
 | 3 | Recent list, live code-changed updates, rate limits | The Knock button disappears within a second of "New code" |
 | 4 | Notch panel, Hands off, keystroke ribbon, session logs | |
 | 5 | CLI with the same features | App and CLI interoperate in all four pairings |
@@ -343,4 +352,4 @@ The Mac app comes first, but it needs something to talk to, which is why step 0 
 3. Do hosts want a "recent guests" list, or is one "New code" button enough?
 4. Should a session survive a relay restart (resume), or is "knock again" acceptable?
 5. Are central session recordings wanted later (for example uploads to object storage), or do recordings stay on the two laptops?
-6. DynamoDB assumes the cluster runs on AWS. If it does not, the same conditional-write design maps to Postgres or Redis.
+6. Claims never expire. If a host is away longer than the door TTL and the id goes to someone else, the old claim still wins it back and the newer holder gets `door_taken` (and a new id). Should claims carry a maximum age?

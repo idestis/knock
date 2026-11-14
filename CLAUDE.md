@@ -50,6 +50,6 @@ One version for app, CLI and relay in `mac/Config/Version.xcconfig`, with tags `
 
 ## Known gaps (v0.1)
 
-- The relay is single-replica and in memory; DynamoDB and pod-to-pod forwarding are designed but not built.
+- The relay is single-replica. Door ownership can persist in Valkey (`KNOCK_STORE=valkey`) with signed door claims; sessions, knocks and limits stay in memory, and pod-to-pod forwarding is designed but not built.
 - No end-to-end encryption yet: the relay could read session bytes in memory.
 - A session doesn't survive a relay restart ("Relay restarted, knock again").

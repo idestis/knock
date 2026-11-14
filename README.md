@@ -172,11 +172,12 @@ Point the app at the relay in **Settings → General → Relay**, or set `relay.
 | `KNOCK_GITHUB_CLIENT_ID`, `_SECRET`, `KNOCK_GITHUB_ORG` | GitHub sign-in, optionally limited to active members of one org |
 | `KNOCK_RELAY_NAME` | Name shown to clients (default `knock-relay`) |
 | `KNOCK_KNOCK_TIMEOUT_SECONDS` | How long a knock waits for the host (default 60) |
+| `KNOCK_TRUSTED_PROXIES` | CIDRs of proxies whose `X-Forwarded-For` the relay believes, comma-separated. Unset ignores the header. Set it behind an HTTP ingress, or anonymous knockers share the ingress's address for rate limits |
 | `KNOCK_DRAIN_GRACE` | On shutdown, how long to wait for live sessions to end (default `25s`) |
 
 OAuth callback URLs to register: `https://<relay>/v1/auth/google/callback` and `https://<relay>/v1/auth/github/callback`. Step-by-step setup for both providers is in [docs/RELAY_SIGN_IN.md](docs/RELAY_SIGN_IN.md).
 
-v0.1 keeps relay state in memory, so run a single replica. The multi-replica design (DynamoDB conditional writes and pod-to-pod forwarding) is in [DESIGN.md](DESIGN.md#8-relay-knockd).
+Run a single replica. Door ownership can be kept in Valkey (`KNOCK_STORE=valkey`) so it survives restarts; sessions and knocks stay in memory. The multi-replica design (pod-to-pod forwarding) is in [DESIGN.md](DESIGN.md#8-relay-knockd).
 
 ## Security, in short
 
