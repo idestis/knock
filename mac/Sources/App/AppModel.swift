@@ -33,14 +33,32 @@ final class ActiveSession: Identifiable {
     }
 
     /// Visible names for the keys the guest pressed, including ones the shell does not echo.
+    /// Keys usually arrive one per message, so plain typing merges into the
+    /// previous chip ("url parrot.live") while it keeps coming; special keys
+    /// (⏎ ⌃C ⇥ ⌫ ↑) always get a chip of their own.
     func noteGuestKeys(_ d: Data) {
-        lastPeerKeyAt = Date()
-        ribbon.append(contentsOf: KeyRibbon.tokens(d))
+        let now = Date()
+        let continuing = lastPeerKeyAt.map { now.timeIntervalSince($0) < 2 } ?? false
+        lastPeerKeyAt = now
+        for token in KeyRibbon.tokens(d) {
+            if continuing, KeyRibbon.isText(token), let last = ribbon.last, KeyRibbon.isText(last), last.count < 32 {
+                ribbon[ribbon.count - 1] = last + token
+            } else {
+                ribbon.append(token)
+            }
+        }
         if ribbon.count > 48 { ribbon.removeFirst(ribbon.count - 48) }
     }
 }
 
 enum KeyRibbon {
+    static let special: Set<String> = ["⏎", "⇥", "⌫", "⎋", "↑", "↓", "→", "←"]
+
+    /// Plain typed text, as opposed to a named key.
+    static func isText(_ t: String) -> Bool {
+        !special.contains(t) && !t.hasPrefix("⌃") && !t.hasPrefix("⎋")
+    }
+
     static func tokens(_ d: Data) -> [String] {
         let s = String(decoding: d, as: UTF8.self)
         switch s {
@@ -193,6 +211,16 @@ final class AppModel {
         if let p = w.authProviders { providers = p }
         if isOpen { openDoor() }
         checkRecent()
+        #if DEBUG
+        // KNOCK_DEMO=1: fixed presence for README screenshots (doors from KNOCK_HOME/recent.json).
+        if ProcessInfo.processInfo.environment["KNOCK_DEMO"] != nil {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+                guard let self else { return }
+                let states: [Presence] = [.online, .codeChanged, .busy, .offline]
+                for (i, r) in self.recent.enumerated() { self.presence[r.doorId] = states[i % states.count] }
+            }
+        }
+        #endif
     }
 
     func shutdown() {
@@ -447,7 +475,7 @@ final class AppModel {
             newCode(reason: (r?.reason ?? "Too many wrong codes.") + " We made you a new code.")
         case MessageType.doorClose:
             isOpen = false
-            doorNotice = "Your door was opened from another Knock on this account. It's closed here."
+            doorNotice = "Your door was closed from another Knock, like knock close in a terminal. Open it again any time."
         case MessageType.error:
             guard let err = e.error else { return }
             if err.code == WireError.unauthorised {

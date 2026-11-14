@@ -203,6 +203,9 @@ enum AppInfo {
     static var version: String { Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev" }
     static var build: String { Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "0" }
     static var deviceName: String {
+        #if DEBUG
+        if let demo = ProcessInfo.processInfo.environment["KNOCK_DEMO_DEVICE"] { return demo }
+        #endif
         let name = Host.current().localizedName ?? ProcessInfo.processInfo.hostName
         return name.lowercased().replacingOccurrences(of: "’", with: "").replacingOccurrences(of: "'", with: "")
             .split(whereSeparator: { !$0.isLetter && !$0.isNumber }).joined(separator: "-")

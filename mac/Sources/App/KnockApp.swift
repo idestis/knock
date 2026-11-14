@@ -51,26 +51,39 @@ struct KnockApp: App {
     }
 }
 
-/// The menu bar item: the K mark as a template image.
+/// The menu bar item: the K mark as a template image. Solid while the door
+/// is open to knocks, dimmed while it's closed (or the relay is unreachable,
+/// since nobody can knock then either).
 struct TrayLabel: View {
     @Environment(AppModel.self) private var model
     @Environment(\.openWindow) private var openWindow
 
+    private var reachable: Bool { model.isOpen && model.connected }
+
     var body: some View {
-        Image(nsImage: Self.image(dimmed: !model.isOpen || !model.connected))
-            .accessibilityLabel(model.isOpen ? "Knock, open to knocks" : "Knock, door closed")
+        Image(nsImage: Self.image(solid: reachable))
+            .id(reachable) // make the status item pick up the new image
+            .accessibilityLabel(reachable ? "Knock, open to knocks" : model.isOpen ? "Knock, offline" : "Knock, door closed")
+            .help(reachable ? "Open to knocks" : model.isOpen ? "Can't reach the relay" : "Door closed")
             .task { model.openWindow = openWindow }
     }
 
-    static func image(dimmed: Bool) -> NSImage {
+    private static var cache: [Bool: NSImage] = [:]
+
+    static func image(solid: Bool) -> NSImage {
+        if let img = cache[solid] { return img }
         let height: CGFloat = 15
         guard let src = NSImage(named: "TrayMark") else { return NSImage() }
         let size = NSSize(width: (height * src.size.width / src.size.height).rounded(), height: height)
+        // Template images keep their alpha, so the dimmed state stays dimmed
+        // in light and dark menu bars alike.
         let img = NSImage(size: size, flipped: false) { rect in
-            src.draw(in: rect, from: .zero, operation: .sourceOver, fraction: dimmed ? 0.45 : 1)
+            src.draw(in: rect, from: .zero, operation: .sourceOver, fraction: solid ? 1 : 0.35)
             return true
         }
         img.isTemplate = true
+        img.accessibilityDescription = "Knock"
+        cache[solid] = img
         return img
     }
 }
@@ -92,13 +105,11 @@ struct TrayMenu: View {
         Toggle("Open to Knocks", isOn: Binding(get: { model.isOpen }, set: { model.setOpen($0) }))
             .disabled(!model.doorReady)
         Button("Copy Code") { model.copyCode() }
-            .keyboardShortcut("c")
             .disabled(model.door == nil)
         Button("New Code") { model.newCode() }
             .disabled(model.door == nil || model.rotatingCode)
         Divider()
         Button("Knock…") { model.showMainWindow(focusSearch: true) }
-            .keyboardShortcut("k")
         let online = model.recent.filter { model.presence[$0.doorId] == .online }
         if !online.isEmpty {
             Menu("Knock On") {
@@ -108,16 +119,13 @@ struct TrayMenu: View {
             }
         }
         Button("Open Knock") { model.showMainWindow() }
-            .keyboardShortcut("o")
         Divider()
         SettingsLink { Text("Settings…") }
-            .keyboardShortcut(",")
         Button("Check for Updates…") { Updater.shared.checkForUpdates() }
             .disabled(!Updater.shared.isEnabled)
         Button("About Knock") { AboutPanel.show() }
         Divider()
         Button("Quit Knock") { NSApp.terminate(nil) }
-            .keyboardShortcut("q")
     }
 
     private var statusLine: String {
@@ -132,17 +140,29 @@ struct TrayMenu: View {
 }
 
 extension AppModel {
+    /// Brings the main window to the front from anywhere: behind other apps,
+    /// minimized, on another Space, or closed.
     func showMainWindow(focusSearch: Bool = false) {
+        let wasAccessory = NSApp.activationPolicy() != .regular
         NSApp.setActivationPolicy(.regular)
-        NSApp.activate()
-        if let w = NSApp.windows.first(where: { $0.identifier?.rawValue == "main" && $0.isVisible }) {
-            w.makeKeyAndOrderFront(nil)
-        } else {
-            openWindow?(id: "main")
+        let raise = { [weak self] in
+            // Cooperative activation can be ignored when we're a menu bar app;
+            // ask firmly, then order the window front regardless.
+            NSApp.activate(ignoringOtherApps: true)
+            if let w = NSApp.windows.first(where: { $0.identifier?.rawValue == "main" }) {
+                if w.isMiniaturized { w.deminiaturize(nil) }
+                w.makeKeyAndOrderFront(nil)
+                w.orderFrontRegardless()
+            } else {
+                self?.openWindow?(id: "main")
+            }
+            if focusSearch {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { NotificationCenter.default.post(name: .knockFocusSearch, object: nil) }
+            }
         }
-        if focusSearch {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { NotificationCenter.default.post(name: .knockFocusSearch, object: nil) }
-        }
+        // A policy switch takes effect on the next run-loop turn; activating
+        // in the same turn is often ignored.
+        if wasAccessory { DispatchQueue.main.async(execute: raise) } else { raise() }
     }
 }
 

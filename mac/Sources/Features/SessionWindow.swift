@@ -162,7 +162,7 @@ struct SessionView: View {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 4) {
                             ForEach(Array(session.ribbon.enumerated()), id: \.offset) { i, key in
-                                Text(key)
+                                Text(key.allSatisfy { $0 == " " } ? "␣" : key)
                                     .font(.caption.monospaced())
                                     .padding(.horizontal, 6)
                                     .padding(.vertical, 2)

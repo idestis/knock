@@ -32,7 +32,13 @@ final class KnockSettings {
     }
 
     var displayName: String {
-        get { access(keyPath: \.displayName); return d.string(forKey: "display_name") ?? NSFullUserName() }
+        get {
+            access(keyPath: \.displayName)
+            #if DEBUG
+            if let demo = ProcessInfo.processInfo.environment["KNOCK_DEMO_NAME"] { return demo }
+            #endif
+            return d.string(forKey: "display_name") ?? NSFullUserName()
+        }
         set { withMutation(keyPath: \.displayName) { d.set(newValue, forKey: "display_name") } }
     }
 
