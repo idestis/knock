@@ -28,7 +28,7 @@ vars:
   APP_DD: "{{.ROOT_DIR}}/mac/build/dd"
   XCB: >-
     xcodebuild -project Knock.xcodeproj -scheme Knock
-    -clonedSourcePackagesDirPath build/spm -derivedDataPath build/dd
+    -clonedSourcePackagesDirPath build/spm
     -skipPackagePluginValidation -skipMacroValidation ${XCODEBUILD_FLAGS:-}
   # The Homebrew tap checkout that task tap:update rewrites (github.com/idestis/homebrew-tap).
   TAP_DIR: '{{.TAP_DIR | default (print .ROOT_DIR "/../homebrew-tap")}}'
@@ -160,7 +160,7 @@ tasks:
     dir: mac
     deps: [app:gen]
     cmds:
-      - "{{.XCB}} -configuration Debug build | xcbeautify 2>/dev/null || {{.XCB}} -configuration Debug build -quiet"
+      - "{{.XCB}} -derivedDataPath build/dd -configuration Debug build | xcbeautify 2>/dev/null || {{.XCB}} -derivedDataPath build/dd -configuration Debug build -quiet"
 
   app:run:
     desc: Build and launch the Debug app (KNOCK_HOME=... to use a scratch ~/.knock)
@@ -174,7 +174,7 @@ tasks:
     dir: mac
     deps: [app:gen]
     cmds:
-      - "{{.XCB}} -configuration Debug test -quiet"
+      - "{{.XCB}} -derivedDataPath build/dd -configuration Debug test -quiet"
 
   app:bump:
     desc: "Set the version: task app:bump -- 0.2.0 (also bumps the build number)"
