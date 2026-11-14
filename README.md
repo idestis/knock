@@ -86,15 +86,29 @@ sequenceDiagram
 
 ## Install
 
-**Mac app.** Download `Knock-x.y.z.dmg` from [Releases](https://github.com/idestis/knock/releases/latest) and drag Knock to Applications. It's signed, notarized, and updates itself from GitHub Releases.
+**Mac app** (macOS 26+):
+
+```sh
+brew install --cask idestis/knock/knock
+```
+
+Or download `Knock-x.y.z.dmg` from [Releases](https://github.com/idestis/knock/releases/latest) and drag Knock to Applications. It's signed, notarized, and updates itself from GitHub Releases either way.
 
 **CLI** (macOS and Linux, arm64 and amd64):
+
+```sh
+brew install idestis/knock/knock
+```
+
+Use the full name: homebrew/core has an unrelated `knock` (a port-knocking client). Upgrade with `brew upgrade idestis/knock/knock`. The app doesn't bundle the CLI, so you can install both; they share `~/.knock`.
+
+Without Homebrew, grab the tarball for your platform:
 
 ```sh
 curl -fsSL https://github.com/idestis/knock/releases/latest/download/knock_$(curl -fsSL https://api.github.com/repos/idestis/knock/releases/latest | sed -n 's/.*"tag_name": "v\(.*\)".*/\1/p')_$(uname -s | tr A-Z a-z)_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz | tar -xz --strip-components=1 -C /usr/local/bin '*/knock'
 ```
 
-Then `knock open` to host, or `knock CODE` to knock.
+`knock update` keeps a tarball install current; a Homebrew install points you to `brew upgrade`. Then `knock open` to host, or `knock CODE` to knock.
 
 **Relay.** You need one knockd that both sides can reach. See [Run a relay](#run-a-relay).
 
@@ -171,7 +185,7 @@ docs/       Local state contract shared by the app and CLI
 design/     Logo and mocks
 ```
 
-**Releasing** (maintainers): `task release -- 0.2.0` then `task publish`. That builds, signs and notarizes the app and CLI, writes a Sparkle appcast, and uploads everything to a GitHub release. One-time setup: `task signing:setup`, `task notary:setup`, `task sparkle:keys`.
+**Releasing** (maintainers): `task release:preview`, then `task release` (version from commits, or pin it: `task release -- 0.2.0`), then `task publish`. That builds, signs and notarizes the app and CLI, writes a Sparkle appcast, uploads everything to a GitHub release, and points the [Homebrew tap](https://github.com/idestis/homebrew-knock) (a checkout at `../homebrew-knock`, or `TAP_DIR=`) at the new version. One-time setup: `task signing:setup`, `task notary:setup`, `task sparkle:keys`.
 
 Read [DESIGN.md](DESIGN.md) for the full spec and [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
 
