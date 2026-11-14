@@ -7,6 +7,12 @@ version: "3"
 
 dotenv: [".env"]
 
+includes:
+  landing:
+    taskfile: ./landing/Taskfile.yml
+    dir: ./landing
+    optional: true
+
 vars:
   REPO: idestis/knock
   VERSION:

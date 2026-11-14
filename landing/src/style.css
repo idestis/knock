@@ -1,0 +1,156 @@
+@import "tailwindcss";
+
+/* Colour tokens. Bright is primary; the dark variant follows the system setting. */
+@theme {
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", system-ui, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+
+  --color-accent: #0043f3;
+  --color-accent-strong: #0036c4;
+  --color-accent-soft: #e8eeff;
+  --color-fill: #0043f3;
+  --color-fill-hover: #0036c4;
+
+  --color-page: #fbfcfe;
+  --color-surface: #ffffff;
+  --color-sunken: #f2f4f8;
+  --color-line: #e3e7ef;
+  --color-ink: #0d1424;
+  --color-muted: #4a5468;
+
+  --color-term: #15171c;
+  --color-term-line: #2a2e37;
+  --color-term-text: #e7e9ee;
+  --color-term-dim: #9aa2b1;
+  --color-term-prompt: #8fb0ff;
+  --color-term-ok: #6ee7a0;
+
+  --shadow-card: 0 1px 2px rgb(13 20 36 / 0.04), 0 8px 24px -12px rgb(13 20 36 / 0.12);
+  --shadow-lift: 0 2px 6px rgb(13 20 36 / 0.05), 0 24px 60px -24px rgb(0 67 243 / 0.28);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-accent: #4d7dff;
+    --color-accent-strong: #7a9dff;
+    --color-accent-soft: #16224a;
+    --color-page: #0c0f16;
+    --color-surface: #141925;
+    --color-sunken: #10141d;
+    --color-line: #252c3b;
+    --color-ink: #eef1f7;
+    --color-muted: #a3acbf;
+    --color-term: #0a0c11;
+    --color-term-line: #232733;
+    --shadow-card: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px -12px rgb(0 0 0 / 0.5);
+    --shadow-lift: 0 2px 6px rgb(0 0 0 / 0.3), 0 24px 60px -24px rgb(77 125 255 / 0.35);
+  }
+}
+
+@layer base {
+  :root {
+    color-scheme: light dark;
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-page font-sans text-ink antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  p code,
+  p kbd {
+    white-space: nowrap;
+  }
+  ::selection {
+    background: color-mix(in srgb, var(--color-accent) 22%, transparent);
+  }
+  :focus-visible {
+    outline: 3px solid var(--color-accent);
+    outline-offset: 3px;
+    border-radius: 6px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  .wrap {
+    @apply mx-auto w-full max-w-6xl px-5 sm:px-8;
+  }
+  .eyebrow {
+    @apply text-sm font-semibold tracking-wide text-accent;
+  }
+  .h2 {
+    @apply font-display text-3xl font-bold tracking-tight text-balance sm:text-4xl;
+  }
+  .lede {
+    @apply mt-4 max-w-2xl text-lg leading-relaxed text-muted text-pretty;
+  }
+  .card {
+    @apply min-w-0 rounded-3xl border border-line bg-surface shadow-(--shadow-card);
+  }
+  .shot {
+    @apply block h-auto w-full rounded-2xl border border-line bg-sunken shadow-(--shadow-card);
+  }
+  .btn {
+    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-full px-6 text-base font-semibold transition-colors;
+  }
+  .btn-primary {
+    @apply bg-fill text-white hover:bg-fill-hover;
+  }
+  .btn-ghost {
+    @apply border border-line bg-surface text-ink hover:border-accent hover:text-accent;
+  }
+
+  /* Terminal-styled code. Always dark, in both colour schemes. */
+  .term {
+    @apply overflow-hidden rounded-2xl border border-term-line bg-term text-term-text shadow-(--shadow-card);
+  }
+  .term-bar {
+    @apply flex items-center gap-2 border-b border-term-line px-4 py-3;
+  }
+  .term-dot {
+    @apply size-3 rounded-full;
+  }
+  .term pre {
+    @apply overflow-x-auto p-4 font-mono text-[0.8125rem] leading-6 sm:p-5 sm:text-sm;
+  }
+  .prompt {
+    @apply text-term-prompt select-none;
+  }
+
+  /* One-line copyable command. */
+  .cmd {
+    @apply flex items-center gap-2 rounded-xl border border-term-line bg-term py-1.5 pr-1.5 pl-3.5 font-mono text-xs text-term-text sm:pl-4 sm:text-sm;
+  }
+  .cmd code {
+    @apply min-w-0 flex-1 overflow-x-auto py-1.5 whitespace-nowrap;
+    scrollbar-width: thin;
+  }
+  .copy {
+    @apply inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-term-dim transition-colors hover:bg-white/10 hover:text-white;
+  }
+  .copy[data-copied] {
+    @apply text-term-ok;
+  }
+  .copy .i-check,
+  .copy[data-copied] .i-copy {
+    display: none;
+  }
+  .copy[data-copied] .i-check {
+    display: block;
+  }
+}

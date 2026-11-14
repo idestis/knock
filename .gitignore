@@ -8,3 +8,5 @@ mac/Config/Signing.xcconfig
 mac/Config/Local.xcconfig
 mac/.sparkle/
 .task/
+landing/node_modules/
+landing/dist/

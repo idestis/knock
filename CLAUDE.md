@@ -23,6 +23,7 @@ Check every change against these. If a change bends one, stop and ask.
 | `cli/` | `knock` CLI | Charm v2 (`charm.land/...`), creack/pty. Raw passthrough during sessions, no TUI over the stream |
 | `mac/` | Knock.app | SwiftUI, Swift 6, default MainActor isolation; XcodeGen `project.yml`; SwiftTerm; Sparkle |
 | `tools/smoke` | Dev harness that knocks as a guest | The host still clicks |
+| `landing/` | Website at idestis.github.io/knock | Vite + Tailwind v4, plain HTML/TS. `task landing:dev`. Deploys from main via `pages.yml` |
 
 ## Commands
 
