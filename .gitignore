@@ -10,3 +10,6 @@ mac/.sparkle/
 .task/
 landing/node_modules/
 landing/dist/
+
+# Agent worktrees
+.claude/worktrees/

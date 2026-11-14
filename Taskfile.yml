@@ -29,7 +29,7 @@ vars:
   XCB: >-
     xcodebuild -project Knock.xcodeproj -scheme Knock
     -clonedSourcePackagesDirPath build/spm -derivedDataPath build/dd
-    -skipPackagePluginValidation -skipMacroValidation $XCODEBUILD_FLAGS
+    -skipPackagePluginValidation -skipMacroValidation ${XCODEBUILD_FLAGS:-}
   # The Homebrew tap checkout that task tap:update rewrites (github.com/idestis/homebrew-tap).
   TAP_DIR: '{{.TAP_DIR | default (print .ROOT_DIR "/../homebrew-tap")}}'
   TAP_PUSH: '{{.TAP_PUSH | default "true"}}'
