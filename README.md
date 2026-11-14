@@ -14,7 +14,11 @@
   <a href="https://github.com/idestis/knock/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/idestis/knock?color=0043F3&label=release"></a>
   <a href="https://github.com/idestis/knock/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/idestis/knock/actions/workflows/ci.yml/badge.svg"></a>
   <img alt="macOS 26+" src="https://img.shields.io/badge/macOS-26%2B-0043F3">
+  <img alt="Status: early alpha" src="https://img.shields.io/badge/status-early%20alpha-orange">
 </p>
+
+> [!WARNING]
+> **Knock is in early alpha.** Expect rough edges and breaking changes between releases while bugs are being fixed. Please [open an issue](https://github.com/idestis/knock/issues) if something breaks.
 
 <p align="center">
   <img src="design/mock/mocks/01-home.png" alt="Knock home screen" width="720">
