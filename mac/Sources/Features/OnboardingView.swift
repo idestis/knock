@@ -131,7 +131,11 @@ struct OnboardingView: View {
 
     private var signIn: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Title("Sign in, if you like", "A verified name and email show on your knocks, so people know it's really you. Knock works without it too.")
+            if model.signInRequired {
+                Title("Sign in", "This relay needs you to sign in. Your verified name and email show on your knocks, so people know it's really you.")
+            } else {
+                Title("Sign in, if you like", "A verified name and email show on your knocks, so people know it's really you. Knock works without it too.")
+            }
             if let me = model.me, me.verified {
                 Label("Signed in as \(me.name)", systemImage: "checkmark.seal.fill").foregroundStyle(.green)
             } else {

@@ -196,7 +196,8 @@ struct AccountRow: View {
     }
 
     private var subtitle: String {
-        if let me = model.me, me.verified { return me.email ?? AppInfo.deviceName }
+        if let me = model.me, let detail = me.verifiedDetail { return detail }
+        if model.signInRequired && !model.signedIn { return "Sign in to use this relay" }
         return AppInfo.deviceName
     }
 }
@@ -530,12 +531,12 @@ struct KnockAlertCard: View {
 struct VerifiedLine: View {
     let identity: Identity
     var body: some View {
-        if !identity.verified {
+        if let line = identity.verifiedLine {
+            Label(line, systemImage: "checkmark.seal.fill")
+                .font(.caption).foregroundStyle(.secondary)
+        } else {
             Label("Not verified. Anyone can type any name.", systemImage: "exclamationmark.triangle.fill")
                 .font(.caption).foregroundStyle(.orange)
-        } else {
-            Label("\(identity.email ?? identity.name) · \(identity.provider == "github" ? "GitHub" : "Google")", systemImage: "checkmark.seal.fill")
-                .font(.caption).foregroundStyle(.secondary)
         }
     }
 }

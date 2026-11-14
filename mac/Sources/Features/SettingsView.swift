@@ -65,10 +65,10 @@ private struct AccountSettings: View {
                     LabeledContent("Signed in as") {
                         VStack(alignment: .trailing) {
                             Text(me.name)
-                            Text(me.email ?? me.provider.capitalized).foregroundStyle(.secondary)
+                            Text(me.verifiedDetail ?? me.providerLabel).foregroundStyle(.secondary)
                         }
                     }
-                    LabeledContent("With", value: me.provider == "github" ? "GitHub" : "Google")
+                    LabeledContent("With", value: me.providerLabel)
                 } footer: {
                     Text("Your verified name and email show on every knock. You stay signed in on this Mac; the sign-in renews itself while you use Knock.")
                         .foregroundStyle(.secondary)
@@ -105,7 +105,9 @@ private struct AccountSettings: View {
                         if model.signingIn { ProgressView().controlSize(.mini) }
                     }
                 } footer: {
-                    Text("Optional. Signing in puts your verified name on every knock, and you stay signed in on this Mac.")
+                    Text(model.signInRequired
+                         ? "This relay needs you to sign in before you can open your door or knock. You stay signed in on this Mac."
+                         : "Optional. Signing in puts your verified name on every knock, and you stay signed in on this Mac.")
                         .foregroundStyle(.secondary)
                 }
             }

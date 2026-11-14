@@ -109,8 +109,8 @@ struct KnockPromptContent: View {
                         Label("Not verified. Anyone can type any name.", systemImage: "exclamationmark.triangle.fill")
                             .font(.caption)
                             .foregroundStyle(.orange)
-                    } else if let email = knock.from.email {
-                        Label(email, systemImage: knock.from.provider == "github" ? "checkmark.seal" : "checkmark.seal.fill")
+                    } else if let line = knock.from.verifiedLine {
+                        Label(line, systemImage: "checkmark.seal.fill")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }

@@ -29,7 +29,7 @@ final class Notifier: NSObject {
         pending[k.knockId] = k
         let c = UNMutableNotificationContent()
         c.title = "Knock, knock."
-        let verified = k.from.verified ? "" : " (not verified)"
+        let verified = k.from.verifiedLine.map { " (\($0))" } ?? " (not verified)"
         c.body = "\(k.from.name)\(verified) wants to come in from \(k.device)."
         c.categoryIdentifier = Self.category
         c.sound = .default

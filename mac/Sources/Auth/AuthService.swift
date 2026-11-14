@@ -13,6 +13,7 @@ struct StoredSession: Codable, Sendable {
     var user: Identity
 
     var accessValid: Bool { Date().timeIntervalSince1970 < Double(expiresAt) - 300 }
+    var accessUnexpired: Bool { Date().timeIntervalSince1970 < Double(expiresAt) }
     var refreshValid: Bool { Date().timeIntervalSince1970 < Double(refreshExpiresAt) - 60 }
 }
 
@@ -68,14 +69,31 @@ final class AuthService: NSObject {
         } catch AuthError.expired {
             signOut()
             throw AuthError.expired
+        } catch {
+            // Relay unreachable: keep using a token that hasn't run out yet.
+            if s.accessUnexpired { return s.accessToken }
+            throw error
         }
     }
 
-    func providers(relay: URL) async -> [String] {
-        struct P: Decodable { var providers: [String] }
-        guard let (d, _) = try? await URLSession.shared.data(from: relay.appending(path: "v1/auth/providers")),
-              let p = try? JSONDecoder().decode(P.self, from: d) else { return [] }
-        return p.providers
+    private var lastRejected: Date?
+
+    /// The relay refused our access token at hello. Returns true when a
+    /// refresh is worth trying (the next hello will do it); false when we
+    /// just tried that, so the caller should sign out instead of looping.
+    func markAccessRejected() -> Bool {
+        guard var s = session, s.refreshValid else { return false }
+        if let last = lastRejected, Date().timeIntervalSince(last) < 60 { return false }
+        lastRejected = Date()
+        s.expiresAt = 0
+        session = s  // memory only: the Keychain copy is replaced by the refresh
+        return true
+    }
+
+    func providers(relay: URL) async -> AuthProviders? {
+        guard let (d, resp) = try? await URLSession.shared.data(from: relay.appending(path: "v1/auth/providers")),
+              (resp as? HTTPURLResponse)?.statusCode == 200 else { return nil }
+        return try? Wire.decoder.decode(AuthProviders.self, from: d)
     }
 
     func signIn(provider: String, relay: URL) async throws -> Identity {
@@ -84,7 +102,7 @@ final class AuthService: NSObject {
         let state = Codes.base64URL(Codes.randomBytes(16))
         var c = URLComponents(url: relay.appending(path: "v1/auth/\(provider)/start"), resolvingAgainstBaseURL: false)!
         c.queryItems = [.init(name: "redirect_uri", value: "knock://auth/callback"), .init(name: "state", value: state),
-                        .init(name: "code_challenge", value: challenge)]
+                        .init(name: "code_challenge", value: challenge), .init(name: "code_challenge_method", value: "S256")]
 
         let callback: URL = try await withCheckedThrowingContinuation { cont in
             let ws = ASWebAuthenticationSession(url: c.url!, callback: .customScheme("knock")) { url, error in
@@ -105,7 +123,12 @@ final class AuthService: NSObject {
         if let e = q("error") { throw AuthError.failed(q("error_description") ?? e) }
         guard let code = q("code") else { throw AuthError.failed("No sign-in code came back.") }
 
-        let s: StoredSession = try await post(relay.appending(path: "v1/auth/token"), ["code": code, "code_verifier": verifier])
+        let s: StoredSession
+        do {
+            s = try await post(relay.appending(path: "v1/auth/token"), ["code": code, "code_verifier": verifier])
+        } catch AuthError.expired {
+            throw AuthError.failed("The relay didn't accept the sign-in. Try again.")
+        }
         store(s)
         log.info("signed in with \(provider, privacy: .public)")
         return s.user

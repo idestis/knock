@@ -112,6 +112,8 @@ final class AppModel {
     var connection: RelayClient.State = .idle
     var me: Identity?
     var providers: [String] = []
+    /// The relay refuses anonymous use (GET /v1/auth/providers, or the welcome).
+    var signInRequired = false
     var authError: String?
     var signingIn = false
 
@@ -184,7 +186,12 @@ final class AppModel {
             return
         }
         relay.start(relay: url)
-        Task { providers = await auth.providers(relay: url) }
+        Task {
+            if let p = await auth.providers(relay: url) {
+                providers = p.providers
+                signInRequired = p.signInRequired ?? false
+            }
+        }
     }
 
     private func hello() async throws -> Hello {
@@ -208,7 +215,9 @@ final class AppModel {
 
     private func welcomed(_ w: Welcome) {
         me = w.user
+        if w.user.verified { authError = nil }
         if let p = w.authProviders { providers = p }
+        signInRequired = !w.allowsAnonymous
         if isOpen { openDoor() }
         checkRecent()
         #if DEBUG
@@ -479,11 +488,20 @@ final class AppModel {
         case MessageType.error:
             guard let err = e.error else { return }
             if err.code == WireError.unauthorised {
-                auth.signOut()
-                authError = "Your sign-in expired. You're anonymous until you sign in again."
-                relay.reconnect()
+                // The relay refused a token we thought was good (clock skew,
+                // rotated secret, changed sign-in rules). Refresh once; if the
+                // relay refuses that too, sign out.
+                if auth.markAccessRejected() {
+                    relay.reconnect()
+                } else {
+                    auth.signOut()
+                    authError = signInRequired ? "Your sign-in expired. Sign in again to use this relay."
+                                               : "Your sign-in expired. You're anonymous until you sign in again."
+                    relay.reconnect()
+                }
             } else if err.code == WireError.anonymousNotAllowed {
-                authError = err.text
+                signInRequired = true
+                authError = "This relay needs you to sign in."
             } else if outgoing != nil {
                 if err.code == WireError.codeMismatch, let id = outgoing?.doorId { presence[id] = .codeChanged; markMismatch(id) }
                 outgoing?.phase = .failed(err.text)
