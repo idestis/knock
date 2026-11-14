@@ -11,6 +11,8 @@ import (
 	"syscall"
 	"time"
 
+	"golang.org/x/term"
+
 	"github.com/idestis/knock/cli/internal/config"
 	"github.com/idestis/knock/cli/internal/record"
 	"github.com/idestis/knock/cli/internal/ui"
@@ -19,43 +21,58 @@ import (
 // Version is set at build time with -ldflags "-X github.com/idestis/knock/cli/internal/app.Version=v1.2.3".
 var Version = "dev"
 
-const usage = `knock shares one shell between two people, through a relay.
+var helpSections = []ui.HelpSection{
+	{Title: "Host", Rows: [][2]string{
+		{"knock open [--tmux] [--view-only]", "Open your door and wait for a knock"},
+		{"knock close", "Close your door, wherever it's open (app or terminal)"},
+		{"knock copy", "Copy your code to the clipboard"},
+		{"knock new-code", "Replace your code (cuts off everyone with the old one)"},
+	}},
+	{Title: "Guest", Rows: [][2]string{
+		{"knock <code>", "Knock, like: knock BVJY 4821 KQ"},
+		{"knock <door>", "Knock on a door from your recent list, no code needed"},
+		{"knock join <code>", "The same, spelled out"},
+		{"knock recent", "Doors you've been in, and whether they're open"},
+		{"knock recent rm <door>", "Forget a door"},
+	}},
+	{Title: "Account (optional)", Rows: [][2]string{
+		{"knock login [google|github]", "Sign in so people see a verified name"},
+		{"knock logout", "Sign out"},
+		{"knock whoami", "Show who the relay will see"},
+	}},
+	{Title: "Recordings", Rows: [][2]string{
+		{"knock sessions ls", "List saved sessions"},
+		{"knock sessions play <id>", "Replay one"},
+	}},
+	{Title: "Settings and updates", Rows: [][2]string{
+		{"knock config", "Show the settings in effect"},
+		{"knock config set <key> <value>", "Change a setting, like: knock config set relay.url https://…"},
+		{"knock config unset <key>", "Go back to the default"},
+		{"knock config path", "Print where the config file is"},
+		{"knock update [--check]", "Update knock from GitHub Releases"},
+		{"knock version", "Show the version"},
+	}},
+	{Title: "Global flags", Rows: [][2]string{
+		{"--relay <url>", "Relay to use (also KNOCK_RELAY, or [relay] url in ~/.knock/config.toml)"},
+	}},
+}
 
-Host:
-  knock open [--tmux] [--view-only]   Open your door and wait for a knock
-  knock close                         Close your door, wherever it's open (app or terminal)
-  knock copy                          Copy your code to the clipboard
-  knock new-code                      Replace your code (cuts off everyone with the old one)
+const (
+	helpTitle   = "Knock, knock. Who's there?"
+	helpTagline = "knock shares one shell between two people, through a relay."
+	helpFooter  = "During a session, press Ctrl-] then q to end it. The host can press Ctrl-] then h for Hands off."
+)
 
-Guest:
-  knock <code>                        Knock, like: knock BVJY 4821 KQ
-  knock <door>                        Knock on a door from your recent list, no code needed
-  knock join <code>                   The same, spelled out
-  knock recent                        Doors you've been in, and whether they're open
-  knock recent rm <door>              Forget a door
-
-Account (optional):
-  knock login [google|github]         Sign in so people see a verified name
-  knock logout                        Sign out
-  knock whoami                        Show who the relay will see
-
-Recordings:
-  knock sessions ls                   List saved sessions
-  knock sessions play <id>            Replay one
-
-Settings and updates:
-  knock config                        Show the settings in effect
-  knock config set <key> <value>      Change a setting, like: knock config set relay.url https://…
-  knock config unset <key>            Go back to the default
-  knock config path                   Print where the config file is
-  knock update [--check]              Update knock from GitHub Releases
-  knock version                       Show the version
-
-Global flags:
-  --relay <url>                       Relay to use (also KNOCK_RELAY, or [relay] url in ~/.knock/config.toml)
-
-During a session, press Ctrl-] then q to end it. The host can press Ctrl-] then h for Hands off.
-`
+// printHelp shows the banner and colours on a terminal, plain text otherwise.
+func printHelp() {
+	if term.IsTerminal(int(os.Stdout.Fd())) && os.Getenv("NO_COLOR") == "" {
+		if w, _, err := term.GetSize(int(os.Stdout.Fd())); err == nil && w >= 60 {
+			ui.Print(ui.HelpScreen(helpTitle, helpTagline, helpSections, helpFooter))
+			return
+		}
+	}
+	fmt.Print(ui.HelpPlain(helpTagline, helpSections, helpFooter))
+}
 
 // Main runs the CLI and returns the exit code.
 func Main(args []string) int {
@@ -65,7 +82,7 @@ func Main(args []string) int {
 		return 2
 	}
 	if len(args) == 0 || args[0] == "help" || args[0] == "-h" || args[0] == "--help" {
-		fmt.Print(usage)
+		printHelp()
 		return 0
 	}
 	if args[0] == "version" || args[0] == "--version" {
