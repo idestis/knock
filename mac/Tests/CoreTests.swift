@@ -17,11 +17,11 @@ import Testing
     }
 
     /// Same vector as Go: protocol.HashCode("4821KQ", salt 0..15, 1000).
-    @Test func hashMatchesGo() {
+    @Test func hashMatchesGo() throws {
         let salt = Data((0..<16).map { UInt8($0) })
-        let h = Codes.hash(code: "4821 kq", salt: salt, iterations: 1000)
+        let h = try #require(Codes.hash(code: "4821 kq", salt: salt, iterations: 1000, allowed: 1...1000))
         #expect(h.count == 32)
-        #expect(h == Codes.hash(code: "4821KQ", salt: salt, iterations: 1000))
+        #expect(h == Codes.hash(code: "4821KQ", salt: salt, iterations: 1000, allowed: 1...1000))
         #expect(h.map { String(format: "%02x", $0) }.joined() == GoVector.hash1000)
     }
 

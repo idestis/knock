@@ -31,43 +31,60 @@ enum AuthError: LocalizedError {
 
 /// Optional sign-in with Google or GitHub, brokered by the relay.
 /// The refresh token (90 days, sliding) lives in the Keychain, so people
-/// stay signed in across launches and days.
+/// stay signed in across launches and days. Each relay has its own sign-in
+/// (account `session:<origin>`): one relay's tokens are never sent to another.
 @MainActor
 final class AuthService: NSObject {
-    private static let account = "session"
     private let log = Logger(subsystem: "io.github.idestis.knock", category: "auth")
+    /// The relay whose sign-in is loaded.
+    private(set) var relay: RelayOrigin?
     private(set) var session: StoredSession?
     private var webSession: ASWebAuthenticationSession?
 
-    override init() {
-        super.init()
-        if let d = Keychain.read(Self.account) {
+    /// Loads the sign-in for this relay, moving the one older builds kept (account
+    /// `session`) to it first if it has none. Other relays' sign-ins stay where they are.
+    func use(relay: RelayOrigin?) {
+        guard relay != self.relay else { return }
+        self.relay = relay
+        session = nil
+        lastRejected = nil
+        guard let relay else { return }
+        Self.migrateLegacy(to: relay)
+        if let d = Keychain.read(relay.keychainAccount) {
             session = try? Wire.decoder.decode(StoredSession.self, from: d)
             if let s = session, !s.refreshValid { signOut() }
         }
+    }
+
+    private static func migrateLegacy(to relay: RelayOrigin) {
+        let legacy = LegacyMigration.keychainAccount
+        guard let d = Keychain.read(legacy),
+              LegacyMigration.shouldMove(legacyExists: true, currentExists: Keychain.read(relay.keychainAccount) != nil) else { return }
+        if Keychain.save(relay.keychainAccount, d) { Keychain.delete(legacy) }
     }
 
     var user: Identity? { session?.user }
 
     func signOut() {
         session = nil
-        Keychain.delete(Self.account)
+        if let relay { Keychain.delete(relay.keychainAccount) }
     }
 
-    /// A valid access token, refreshing when needed. nil means anonymous.
-    func accessToken(relay: URL) async throws -> String? {
-        guard let s = session else { return nil }
+    /// A valid access token for `relay`, refreshing when needed. nil means anonymous,
+    /// including when `relay` isn't the one whose sign-in is loaded.
+    func accessToken(relay url: URL) async throws -> String? {
+        guard let origin = RelayOrigin(url: url), origin == relay, let s = session else { return nil }
         if s.accessValid { return s.accessToken }
         guard s.refreshValid else {
             signOut()
             throw AuthError.expired
         }
         do {
-            let fresh: StoredSession = try await post(relay.appending(path: "v1/auth/refresh"), ["refresh_token": s.refreshToken])
-            store(fresh)
+            let fresh: StoredSession = try await post(url.appending(path: "v1/auth/refresh"), ["refresh_token": s.refreshToken])
+            store(fresh, for: origin)
             return fresh.accessToken
         } catch AuthError.expired {
-            signOut()
+            if origin == relay { signOut() } else { Keychain.delete(origin.keychainAccount) }
             throw AuthError.expired
         } catch {
             // Relay unreachable: keep using a token that hasn't run out yet.
@@ -97,6 +114,7 @@ final class AuthService: NSObject {
     }
 
     func signIn(provider: String, relay: URL) async throws -> Identity {
+        guard let origin = RelayOrigin(url: relay) else { throw AuthError.failed("Set a relay address in Settings.") }
         let verifier = Codes.base64URL(Codes.randomBytes(32))
         let challenge = Codes.base64URL(Data(SHA256.hash(data: Data(verifier.utf8))))
         let state = Codes.base64URL(Codes.randomBytes(16))
@@ -129,14 +147,15 @@ final class AuthService: NSObject {
         } catch AuthError.expired {
             throw AuthError.failed("The relay didn't accept the sign-in. Try again.")
         }
-        store(s)
+        store(s, for: origin)
         log.info("signed in with \(provider, privacy: .public)")
         return s.user
     }
 
-    private func store(_ s: StoredSession) {
-        session = s
-        if let d = try? Wire.encoder.encode(s) { Keychain.save(Self.account, d) }
+    /// Saves under the relay that issued it; memory only follows if that's still the current relay.
+    private func store(_ s: StoredSession, for origin: RelayOrigin) {
+        if origin == relay { session = s }
+        if let d = try? Wire.encoder.encode(s) { Keychain.save(origin.keychainAccount, d) }
     }
 
     private func post<T: Decodable>(_ url: URL, _ body: [String: String]) async throws -> T {

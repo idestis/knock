@@ -123,9 +123,7 @@ struct OnboardingView: View {
                 primary("Continue") {
                     model.settings.displayName = name.trimmingCharacters(in: .whitespaces).isEmpty ? NSFullUserName() : name
                     if relay != model.settings.relayURLString {
-                        model.settings.relayURLString = relay
-                        model.relay.stop()
-                        model.connectRelay()
+                        model.changeRelay(to: relay)
                     }
                     next()
                 }

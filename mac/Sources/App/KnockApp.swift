@@ -91,6 +91,7 @@ struct TrayLabel: View {
 /// Native NSMenu (MenuBarExtra .menu style).
 struct TrayMenu: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.openSettings) private var openSettings
 
     var body: some View {
         Text(statusLine)
@@ -120,7 +121,7 @@ struct TrayMenu: View {
         }
         Button("Open Knock") { model.showMainWindow() }
         Divider()
-        SettingsLink { Text("Settings…") }
+        Button("Settings…") { Foreground.bring(match: WindowPolicy.isSettings) { openSettings() } }
         Button("Check for Updates…") { Updater.shared.checkForUpdates() }
             .disabled(!Updater.shared.isEnabled)
         Button("About Knock") { AboutPanel.show() }
@@ -222,10 +223,50 @@ enum TrafficLights {
 enum WindowPolicy {
     @MainActor static func update() {
         let visible = NSApp.windows.contains { w in
-            w.isVisible && (w.identifier?.rawValue == "main" || w.identifier?.rawValue == "session" || w.identifier?.rawValue.contains("Settings") == true || w.title.contains("Settings"))
+            w.isVisible && (["main", "session", Foreground.tag].contains(w.identifier?.rawValue) || isSettings(w))
         }
         let wanted: NSApplication.ActivationPolicy = visible ? .regular : .accessory
         if NSApp.activationPolicy() != wanted { NSApp.setActivationPolicy(wanted) }
+    }
+
+    @MainActor static func isSettings(_ w: NSWindow) -> Bool {
+        w.identifier?.rawValue.contains("Settings") == true || w.title.contains("Settings")
+    }
+}
+
+/// Brings Knock in front of other apps for a window opened from the menu bar.
+/// A menu bar (accessory) app's polite activate() is often ignored, and
+/// SettingsLink or the About panel then open behind the frontmost app.
+enum Foreground {
+    /// Marks windows opened this way (the About panel, Sparkle's window) so
+    /// WindowPolicy keeps the Dock icon while they're up.
+    static let tag = "foreground"
+
+    @MainActor static func bring(match: @escaping @MainActor (NSWindow) -> Bool = { _ in false }, _ open: @escaping @MainActor () -> Void) {
+        let before = Set(NSApp.windows.map(ObjectIdentifier.init))
+        let wasAccessory = NSApp.activationPolicy() != .regular
+        NSApp.setActivationPolicy(.regular)
+        let go: @MainActor () -> Void = {
+            NSApp.activate(ignoringOtherApps: true)
+            open()
+            // The window appears on this or the next run-loop turn.
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    for w in NSApp.windows where w.isVisible && w.canBecomeKey {
+                        let isNew = !before.contains(ObjectIdentifier(w))
+                        guard isNew || match(w) else { continue }
+                        if isNew && w.identifier == nil { w.identifier = NSUserInterfaceItemIdentifier(tag) }
+                        if w.isMiniaturized { w.deminiaturize(nil) }
+                        w.makeKeyAndOrderFront(nil)
+                        w.orderFrontRegardless()
+                    }
+                    WindowPolicy.update()
+                }
+            }
+        }
+        // A policy switch takes effect on the next run-loop turn; activating
+        // in the same turn is often ignored.
+        if wasAccessory { DispatchQueue.main.async { MainActor.assumeIsolated(go) } } else { go() }
     }
 }
 
@@ -261,8 +302,7 @@ enum AboutPanel {
         }
         credits.append(NSAttributedString(string: "   🇺🇦", attributes: body.merging([.font: NSFont.systemFont(ofSize: 14)]) { $1 }))
 
-        NSApp.activate()
-        NSApp.orderFrontStandardAboutPanel(options: [.credits: credits])
+        Foreground.bring { NSApp.orderFrontStandardAboutPanel(options: [.credits: credits]) }
     }
 }
 
@@ -280,8 +320,7 @@ final class Updater {
     }
 
     func checkForUpdates() {
-        NSApp.activate()
-        controller?.checkForUpdates(nil)
+        Foreground.bring { [controller] in controller?.checkForUpdates(nil) }
     }
 }
 

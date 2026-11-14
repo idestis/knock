@@ -149,6 +149,13 @@ struct SidebarView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 12)
             }
+            if model.doorTaken {
+                Button("Make a new door", action: model.makeNewDoor)
+                    .controlSize(.large)
+                    .disabled(model.rotatingCode)
+                    .help("A new door and code. The codes you shared before stop working.")
+                    .padding(.top, 8)
+            }
 
             Spacer(minLength: 20)
             AccountRow()

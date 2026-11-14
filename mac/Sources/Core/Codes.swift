@@ -50,17 +50,31 @@ nonisolated enum Codes {
         return c.count == 6 && c[0..<4].allSatisfy(\.isNumber) && c[4..<6].allSatisfy { letters.contains($0) }
     }
 
+    /// Iteration counts Knock will run. A relay can name the count in door.salt; anything
+    /// outside this range is refused rather than hashed (too weak, too slow, or a UInt32 trap).
+    static let iterationRange = 100_000...10_000_000
+
     /// PBKDF2-HMAC-SHA256. Slow on purpose (~0.3 s); never call on the main actor.
-    static func hash(code: String, salt: Data, iterations: Int = iterations) -> Data {
+    /// nil when `iterations` is outside `allowed` or CommonCrypto fails.
+    static func hash(code: String, salt: Data, iterations: Int = iterations,
+                     allowed: ClosedRange<Int> = iterationRange) -> Data? {
+        guard allowed.contains(iterations), iterations > 0, iterations <= Int(UInt32.max), !salt.isEmpty else { return nil }
         let password = Array(normalise(code).utf8).map { Int8(bitPattern: $0) }
         var out = [UInt8](repeating: 0, count: hashLength)
-        salt.withUnsafeBytes { saltPtr in
-            _ = CCKeyDerivationPBKDF(CCPBKDFAlgorithm(kCCPBKDF2), password, password.count,
-                                     saltPtr.bindMemory(to: UInt8.self).baseAddress, salt.count,
-                                     CCPseudoRandomAlgorithm(kCCPRFHmacAlgSHA256), UInt32(iterations),
-                                     &out, hashLength)
+        let status = salt.withUnsafeBytes { saltPtr in
+            CCKeyDerivationPBKDF(CCPBKDFAlgorithm(kCCPBKDF2), password, password.count,
+                                 saltPtr.bindMemory(to: UInt8.self).baseAddress, salt.count,
+                                 CCPseudoRandomAlgorithm(kCCPRFHmacAlgSHA256), UInt32(iterations),
+                                 &out, hashLength)
         }
+        guard status == Int32(kCCSuccess) else { return nil }
         return Data(out)
+    }
+
+    /// Hash for this device's own door, at Knock's fixed iteration count.
+    static func ownHash(code: String, salt: Data) -> Data {
+        guard let h = hash(code: code, salt: salt) else { fatalError("PBKDF2 failed for a fixed, valid input") }
+        return h
     }
 
     static func base64URL(_ d: Data) -> String {

@@ -154,10 +154,9 @@ extension GuestTerminal: TerminalViewDelegate {
     func rangeChanged(source: TerminalView, startY: Int, endY: Int) {}
     func requestOpenLink(source: TerminalView, link: String, params: [String: String]) {}
     func bell(source: TerminalView) {}
-    func clipboardCopy(source: TerminalView, content: Data) {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(String(decoding: content, as: UTF8.self), forType: .string)
-    }
+    /// OSC 52 from the host's shell. Ignored: the host's output must not silently
+    /// replace what's on the guest's clipboard. The guest can still select and copy.
+    func clipboardCopy(source: TerminalView, content: Data) {}
     func iTermContent(source: TerminalView, content: ArraySlice<UInt8>) {}
 }
 

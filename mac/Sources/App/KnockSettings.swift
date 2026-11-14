@@ -73,6 +73,17 @@ final class KnockSettings {
         set { withMutation(keyPath: \.verifiedGuestsOnly) { d.set(newValue, forKey: "guest.verified_only") } }
     }
 
+    /// `door.code_max_age_days`: a code older than this is replaced when the door opens or
+    /// sits idle, never during a session. 0 keeps a code until "New code".
+    var codeMaxAgeDays: Int {
+        get {
+            access(keyPath: \.codeMaxAgeDays)
+            if d.object(forKey: "door.code_max_age_days") != nil { return max(0, d.integer(forKey: "door.code_max_age_days")) }
+            return max(0, Int(file["door.code_max_age_days"] ?? "") ?? CodeAge.defaultDays)
+        }
+        set { withMutation(keyPath: \.codeMaxAgeDays) { d.set(max(0, newValue), forKey: "door.code_max_age_days") } }
+    }
+
     var hostRecording: Recorder.Mode {
         get { access(keyPath: \.hostRecording); return Recorder.Mode(rawValue: string("sessions.save", file: "sessions.save", "output")) ?? .output }
         set { withMutation(keyPath: \.hostRecording) { d.set(newValue.rawValue, forKey: "sessions.save") } }

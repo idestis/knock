@@ -38,10 +38,28 @@ final class Notifier: NSObject {
         UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: k.knockId, content: c, trigger: nil))
     }
 
+    /// A plain heads-up with no actions, such as "Knock made you a new code".
+    func postNotice(id: String, title: String, body: String) {
+        let c = UNMutableNotificationContent()
+        c.title = title
+        c.body = body
+        c.sound = .default
+        UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: id, content: c, trigger: nil))
+    }
+
     func remove(_ knockId: String) {
         pending[knockId] = nil
         UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: [knockId])
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [knockId])
+    }
+
+    /// A new code or a closed door: no old knock's "Let in" should be left lying around.
+    func removeAll() {
+        let ids = Array(pending.keys)
+        pending.removeAll()
+        guard !ids.isEmpty else { return }
+        UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: ids)
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ids)
     }
 }
 

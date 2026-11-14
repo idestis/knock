@@ -34,7 +34,18 @@ private struct GeneralSettings: View {
                     Button("Reconnect", action: applyRelay)
                 }
             } footer: {
-                Text(s.isManaged("relay.url") ? "Your organisation manages the relay." : "The knockd relay that brokers knocks. Quit Knock and nobody can reach you.")
+                Text(s.isManaged("relay.url") ? "Your organisation manages the relay." : "The knockd relay that brokers knocks. Each relay has its own door, code and sign-in. Quit Knock and nobody can reach you.")
+                    .foregroundStyle(.secondary)
+            }
+            Section {
+                Picker("Make a new code after", selection: $s.codeMaxAgeDays) {
+                    ForEach(CodeAge.choices(including: s.codeMaxAgeDays), id: \.self) { Text(CodeAge.label(days: $0)).tag($0) }
+                }
+                .disabled(s.isManaged("door.code_max_age_days"))
+            } footer: {
+                Text(s.isManaged("door.code_max_age_days")
+                     ? "Your organisation sets how long a code lasts."
+                     : "An old code is replaced when your door opens or sits idle, never during a session. You'll need to share the new one.")
                     .foregroundStyle(.secondary)
             }
             Section {
@@ -53,9 +64,7 @@ private struct GeneralSettings: View {
     }
 
     private func applyRelay() {
-        model.settings.relayURLString = relay
-        model.relay.stop()
-        model.connectRelay()
+        model.changeRelay(to: relay)
     }
 }
 
