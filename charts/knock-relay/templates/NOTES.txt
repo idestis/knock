@@ -1,0 +1,49 @@
+{{- $fullname := include "knock-relay.fullname" . -}}
+{{- $publicURL := include "knock-relay.publicURL" . -}}
+{{- $providers := include "knock-relay.providerCount" . | int -}}
+{{- $anon := include "knock-relay.allowAnonymous" . -}}
+knock-relay {{ .Chart.AppVersion }} is installed as {{ $fullname }} in {{ .Release.Namespace }}.
+
+Relay URL
+{{- if $publicURL }}
+  {{ $publicURL }}
+{{- else }}
+  No publicURL or ingress is set. To try it from this machine:
+    kubectl -n {{ .Release.Namespace }} port-forward svc/{{ $fullname }} 8787:{{ .Values.service.port }}
+  then use http://127.0.0.1:8787
+{{- end }}
+
+Check it:
+  curl -s {{ $publicURL | default "http://127.0.0.1:8787" }}/v1/info
+
+Point Knock.app at it in Settings > General > Relay, or set relay.url in ~/.knock/config.toml.
+
+Sign-in
+{{- if eq $providers 0 }}
+  No provider is set: everyone knocks anonymously, marked "not verified".
+{{- else }}
+  Register these callback URLs with your providers (publicURL + /v1/auth/{provider}/callback):
+  {{- if or .Values.auth.google.clientId .Values.auth.google.existingSecret }}
+    Google: {{ $publicURL }}/v1/auth/google/callback
+  {{- end }}
+  {{- if or .Values.auth.github.clientId .Values.auth.github.existingSecret }}
+    GitHub: {{ $publicURL }}/v1/auth/github/callback
+  {{- end }}
+  Sign-in is {{ if eq $anon "true" }}optional: anonymous knocks are allowed and marked "not verified"{{ else }}required{{ end }}.
+  {{- if not (hasPrefix "https://" $publicURL) }}
+  WARNING: {{ $publicURL }} is not https. Providers accept that for local testing only.
+  {{- end }}
+{{- end }}
+  Setup guide: https://github.com/idestis/knock/blob/main/docs/RELAY_SIGN_IN.md
+
+Notes
+  - State is in memory (store.type=memory): one replica, and a restart or upgrade ends every live session.
+{{- if not .Values.tokenSecret.existingSecret }}
+{{- if not .Values.tokenSecret.value }}
+  - KNOCK_TOKEN_SECRET was generated and is kept in Secret {{ include "knock-relay.secretName" . }}; upgrades reuse it.
+{{- end }}
+{{- end }}
+{{- if .Values.ingress.enabled }}
+  - Sessions are long-lived WebSockets: make sure your ingress proxy timeouts allow that
+    (ingress-nginx: nginx.ingress.kubernetes.io/proxy-read-timeout and proxy-send-timeout).
+{{- end }}

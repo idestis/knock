@@ -1,5 +1,9 @@
 # knock-relay on Kubernetes. Apply with: kubectl apply -f deploy/knock-relay.yaml
 #
+# The Helm chart is the preferred install (charts/knock-relay):
+#   helm install knock-relay oci://ghcr.io/idestis/charts/knock-relay --version <release> -f values.yaml
+# This manifest stays for anyone who'd rather not use Helm.
+#
 # v0.1 keeps state in memory, so run ONE replica. The multi-replica design
 # (DynamoDB conditional writes + pod-to-pod forwarding) is DESIGN.md section 8.
 # Expose it only on your tailnet (Tailscale operator below) or an internal LB.

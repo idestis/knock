@@ -1,0 +1,43 @@
+name: chart
+
+# Publishes the knock-relay Helm chart as an OCI artifact on version tags:
+# tag vX.Y.Z -> oci://ghcr.io/<owner>/charts/knock-relay:X.Y.Z
+# The chart version must equal the tag (task release keeps them in step).
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: azure/setup-helm@v4
+        with:
+          version: v4.3.0
+      - name: Chart version matches the tag
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          v=$(sed -n 's/^version: //p' charts/knock-relay/Chart.yaml)
+          a=$(sed -n 's/^appVersion: //p' charts/knock-relay/Chart.yaml | tr -d '"')
+          if [ "v$v" != "$TAG" ] || [ "v$a" != "$TAG" ]; then
+            echo "::error::Chart.yaml version $v / appVersion $a doesn't match tag $TAG"
+            exit 1
+          fi
+      - name: Lint and render
+        run: scripts/chart-lint.sh
+      - name: Package
+        run: helm package charts/knock-relay -d dist
+      - name: Push
+        env:
+          OWNER: ${{ github.repository_owner }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          echo "$TOKEN" | helm registry login ghcr.io --username "$ACTOR" --password-stdin
+          helm push dist/knock-relay-*.tgz "oci://ghcr.io/${OWNER,,}/charts"

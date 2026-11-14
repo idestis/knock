@@ -1,0 +1,20 @@
+apiVersion: v2
+name: knock-relay
+description: knockd, the self-hosted relay for Knock. It brokers knocks and forwards session bytes; it never runs a shell.
+type: application
+# version and appVersion always equal MARKETING_VERSION in mac/Config/Version.xcconfig:
+# one version covers the app, CLI, relay and this chart. task app:bump (run by task release) rewrites both.
+version: 0.1.0
+appVersion: "0.1.0"
+kubeVersion: ">=1.25.0-0"
+home: https://idestis.github.io/knock
+icon: https://idestis.github.io/knock/apple-touch-icon.png
+sources:
+  - https://github.com/idestis/knock
+  - https://github.com/idestis/knock/tree/main/charts/knock-relay
+keywords: [knock, relay, terminal, websocket, remote-support]
+maintainers:
+  - name: idestis
+    url: https://github.com/idestis
+annotations:
+  artifacthub.io/license: MIT

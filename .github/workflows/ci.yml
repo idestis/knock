@@ -1,7 +1,7 @@
 name: ci
 
-# Runs on every PR and push to main. `go` and `mac` are meant as required checks, so they always
-# report: a mac job skipped because nothing under mac/ (or the shared code it pins) changed counts as passed.
+# Runs on every PR and push to main. `go`, `mac` and `chart` are meant as required checks, so they always
+# report: a mac or chart job skipped because nothing it covers changed counts as passed.
 on:
   push:
     branches: [main]
@@ -31,6 +31,7 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       mac: ${{ steps.diff.outputs.mac }}
+      chart: ${{ steps.diff.outputs.chart }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -45,6 +46,19 @@ jobs:
             files=$(git diff --name-only "$BASE" HEAD)
           fi
           grep -qE '^(mac/|protocol/|Taskfile.yml|\.github/workflows/ci.yml)' <<<"$files" && echo "mac=true" >> "$GITHUB_OUTPUT" || echo "mac=false" >> "$GITHUB_OUTPUT"
+          grep -qE '^(charts/|mac/Config/Version.xcconfig|scripts/chart-lint.sh|\.github/workflows/ci.yml)' <<<"$files" && echo "chart=true" >> "$GITHUB_OUTPUT" || echo "chart=false" >> "$GITHUB_OUTPUT"
+
+  chart:
+    needs: changes
+    if: needs.changes.outputs.chart == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: azure/setup-helm@v4
+        with:
+          version: v4.3.0
+      - name: Lint and render the chart
+        run: scripts/chart-lint.sh
 
   mac:
     needs: changes

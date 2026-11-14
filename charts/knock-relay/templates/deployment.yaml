@@ -1,0 +1,139 @@
+{{- include "knock-relay.validate" . }}
+{{- $secret := include "knock-relay.secretName" . }}
+{{- $a := .Values.auth }}
+{{- $anon := include "knock-relay.allowAnonymous" . }}
+{{- $publicURL := include "knock-relay.publicURL" . }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "knock-relay.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "knock-relay.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  {{- if eq .Values.store.type "memory" }}
+  # State is in memory: never run the old and new pod side by side.
+  strategy:
+    type: Recreate
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "knock-relay.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "knock-relay.labels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "knock-relay.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: knockd
+          image: {{ include "knock-relay.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8787
+              protocol: TCP
+          env:
+            {{- if $publicURL }}
+            - name: KNOCK_PUBLIC_URL
+              value: {{ $publicURL | quote }}
+            {{- end }}
+            - name: KNOCK_RELAY_NAME
+              value: {{ .Values.relayName | quote }}
+            {{- if $anon }}
+            - name: KNOCK_ALLOW_ANONYMOUS
+              value: {{ $anon | quote }}
+            {{- end }}
+            - name: KNOCK_KNOCK_TIMEOUT_SECONDS
+              value: {{ .Values.knockTimeoutSeconds | quote }}
+            - name: KNOCK_DRAIN_GRACE
+              value: {{ .Values.drainGrace | quote }}
+            - name: KNOCK_TOKEN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.tokenSecret.existingSecret | default $secret }}
+                  key: {{ ternary .Values.tokenSecret.existingSecretKey "token-secret" (not (empty .Values.tokenSecret.existingSecret)) }}
+            {{- range $p := list "google" "github" }}
+            {{- $c := index $a $p }}
+            {{- if or $c.clientId $c.existingSecret }}
+            {{- $from := $c.existingSecret | default $secret }}
+            - name: KNOCK_{{ upper $p }}_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $from }}
+                  key: {{ ternary $c.clientIdKey (printf "%s-client-id" $p) (not (empty $c.existingSecret)) }}
+            - name: KNOCK_{{ upper $p }}_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $from }}
+                  key: {{ ternary $c.clientSecretKey (printf "%s-client-secret" $p) (not (empty $c.existingSecret)) }}
+            {{- end }}
+            {{- end }}
+            {{- with $a.google.domain }}
+            - name: KNOCK_GOOGLE_DOMAIN
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with $a.github.org }}
+            - name: KNOCK_GITHUB_ORG
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

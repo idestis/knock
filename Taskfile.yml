@@ -46,7 +46,7 @@ tasks:
     desc: Check the tools this repo needs
     cmds:
       - |
-        for t in go xcodebuild xcodegen create-dmg git-cliff gh; do
+        for t in go xcodebuild xcodegen create-dmg git-cliff gh helm; do
           command -v $t >/dev/null && echo "✓ $t" || echo "✗ $t (brew install $t)"
         done
 
@@ -86,6 +86,18 @@ tasks:
     desc: Build the knock-relay container image locally
     cmds:
       - docker build -f relay/Dockerfile --build-arg VERSION={{.VERSION}} -t ghcr.io/{{.REPO}}-relay:{{.VERSION}} .
+
+  chart:lint:
+    desc: Lint and render the Helm chart (charts/knock-relay) with every values file in its ci/
+    cmds:
+      - scripts/chart-lint.sh
+
+  chart:package:
+    desc: Package the Helm chart into dist/charts
+    deps: [chart:lint]
+    cmds:
+      - mkdir -p {{.DIST}}/charts
+      - helm package charts/knock-relay -d {{.DIST}}/charts
 
   cli:build:
     desc: Build the knock CLI for this machine into bin/
@@ -177,13 +189,14 @@ tasks:
       - "{{.XCB}} -configuration Debug test -quiet"
 
   app:bump:
-    desc: "Set the version: task app:bump -- 0.2.0 (also bumps the build number)"
+    desc: "Set the version: task app:bump -- 0.2.0 (also bumps the build number and the Helm chart)"
     dir: mac
     cmds:
       - |
         v="{{.CLI_ARGS}}"; [ -n "$v" ] || { echo "usage: task app:bump -- X.Y.Z"; exit 1; }
         b=$(( {{.BUILD}} + 1 ))
         sed -i '' "s/^MARKETING_VERSION = .*/MARKETING_VERSION = $v/; s/^CURRENT_PROJECT_VERSION = .*/CURRENT_PROJECT_VERSION = $b/" Config/Version.xcconfig
+        sed -i '' "s/^version: .*/version: $v/; s/^appVersion: .*/appVersion: \"$v\"/" ../charts/knock-relay/Chart.yaml
         echo "Version $v ($b)"
 
   # ── One-time release setup ──────────────────────────────────────────────────
@@ -303,7 +316,7 @@ tasks:
         # The first release (and any version set by hand) is already in Version.xcconfig: keep its build number.
         if [ "$v" = "{{.VERSION}}" ]; then echo "Version.xcconfig already says $v ({{.BUILD}})"; else task app:bump -- "$v"; fi
         git cliff --tag "v$v" -o CHANGELOG.md
-        git add CHANGELOG.md mac/Config/Version.xcconfig
+        git add CHANGELOG.md mac/Config/Version.xcconfig charts/knock-relay/Chart.yaml
         git commit -qm "chore(release): v$v"
         git tag -a "v$v" -m "Knock v$v"
         echo "Tagged v$v. Next: task publish"

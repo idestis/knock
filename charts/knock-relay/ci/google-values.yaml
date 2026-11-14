@@ -1,0 +1,22 @@
+# Google sign-in from values, publicURL derived from the ingress host, image pinned by digest.
+image:
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+tokenSecret:
+  value: this-is-a-test-secret-of-at-least-32-bytes
+auth:
+  google:
+    clientId: 1234567890-abc.apps.googleusercontent.com
+    clientSecret: GOCSPX-test
+    domain: example.com
+ingress:
+  enabled: true
+  hosts:
+    - host: knock.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+drainGrace: 2m
+terminationGracePeriodSeconds: 150
+extraEnv:
+  - name: TZ
+    value: UTC
