@@ -16,6 +16,7 @@ var Settable = map[string]string{
 	"sessions.dir":            "~/.knock/sessions",
 	"sessions.retention_days": "30",
 	"guest.input":             "allow or view-only",
+	"guest.verified_only":     "true or false",
 	"knock.timeout_seconds":   "60",
 	"knock.notch":             "true or false (Knock.app only)",
 	"shell.command":           "/bin/zsh -l",
@@ -43,7 +44,7 @@ func Validate(key, value string) (string, error) {
 		if v != "allow" && v != "view-only" {
 			return "", bad
 		}
-	case "knock.notch":
+	case "knock.notch", "guest.verified_only":
 		if v != "true" && v != "false" {
 			return "", bad
 		}
@@ -140,7 +141,7 @@ func Set(path, key, value string) error {
 
 func tomlValue(key, v string) string {
 	switch key {
-	case "sessions.retention_days", "knock.timeout_seconds", "knock.notch":
+	case "sessions.retention_days", "knock.timeout_seconds", "knock.notch", "guest.verified_only":
 		return v
 	}
 	return strconv.Quote(v)

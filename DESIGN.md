@@ -307,6 +307,7 @@ Each side can save a recording under `~/.knock/sessions/`.
 | `sessions.dir` | `~/.knock/sessions` | Where recordings go; point it elsewhere to keep them on another volume |
 | `sessions.retention_days` | `30` | Older recordings are deleted |
 | `guest.input` | `"allow"` | `allow` or `view-only` at session start |
+| `guest.verified_only` | `false` | Turn away knocks from people who aren't signed in, before the host is asked. It only ever declines |
 | `knock.notch` | `true` | Use the notch panel when available |
 | `knock.timeout_seconds` | `60` | How long a knock waits |
 | `shell.command` | the login shell | What the PTY runs |

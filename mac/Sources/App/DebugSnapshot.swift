@@ -26,6 +26,7 @@ enum DebugSnapshot {
                 write(ZStack { KnockBackdrop(); KnockAlertCard(knock: sample, onAllow: {}, onDeny: {}) }.frame(width: 600, height: 520), "alert", dir)
                 write(KnockPromptPanelView(knock: sample, notch: true, notchWidth: 200, notchHeight: 32, onAllow: {}, onDeny: {})
                     .frame(width: 460, height: 168), "notch", dir)
+                write(ZStack { KnockBackdrop(); OnboardingView(step: 4) }.environment(model).frame(width: 980, height: 660), "onboarding-disk", dir)
             }
         }
     }

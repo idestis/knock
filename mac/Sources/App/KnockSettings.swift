@@ -67,6 +67,12 @@ final class KnockSettings {
         set { withMutation(keyPath: \.guestInputDefault) { d.set(newValue ? "allow" : "view-only", forKey: "guest.input") } }
     }
 
+    /// Turn away knocks from people who aren't signed in, before the host is asked.
+    var verifiedGuestsOnly: Bool {
+        get { access(keyPath: \.verifiedGuestsOnly); return bool("guest.verified_only", file: "guest.verified_only", false) }
+        set { withMutation(keyPath: \.verifiedGuestsOnly) { d.set(newValue, forKey: "guest.verified_only") } }
+    }
+
     var hostRecording: Recorder.Mode {
         get { access(keyPath: \.hostRecording); return Recorder.Mode(rawValue: string("sessions.save", file: "sessions.save", "output")) ?? .output }
         set { withMutation(keyPath: \.hostRecording) { d.set(newValue.rawValue, forKey: "sessions.save") } }

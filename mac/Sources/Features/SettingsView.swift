@@ -1,11 +1,16 @@
 import SwiftUI
 
+enum SettingsTab: Hashable { case general, account, sessions, security }
+
 struct SettingsView: View {
+    @State private var tab = SettingsTab.general
+
     var body: some View {
-        TabView {
-            Tab("General", systemImage: "gearshape") { GeneralSettings() }
-            Tab("Account", systemImage: "person.crop.circle") { AccountSettings() }
-            Tab("Sessions", systemImage: "terminal") { SessionSettings() }
+        TabView(selection: $tab) {
+            Tab("General", systemImage: "gearshape", value: .general) { GeneralSettings() }
+            Tab("Account", systemImage: "person.crop.circle", value: .account) { AccountSettings() }
+            Tab("Sessions", systemImage: "terminal", value: .sessions) { SessionSettings() }
+            Tab("Security", systemImage: "lock.shield", value: .security) { SecuritySettings { tab = .sessions } }
         }
         .frame(width: 520)
         .scenePadding()
@@ -125,7 +130,6 @@ private struct SessionSettings: View {
         @Bindable var s = model.settings
         Form {
             Section("When someone is in your shell") {
-                Toggle("Let guests type by default", isOn: $s.guestInputDefault)
                 Picker("Record", selection: $s.hostRecording) {
                     ForEach(Recorder.Mode.allCases) { Text($0.label).tag($0) }
                 }
@@ -148,5 +152,60 @@ private struct SessionSettings: View {
             }
         }
         .formStyle(.grouped)
+    }
+}
+
+/// Honest controls only. Nothing here filters commands or paths: inside a shell
+/// that would be trivial to get around, so it would look like protection and not be.
+private struct SecuritySettings: View {
+    @Environment(AppModel.self) private var model
+    var showSessions: () -> Void = {}
+
+    var body: some View {
+        @Bindable var s = model.settings
+        Form {
+            Section {
+                LabeledContent("Full Disk Access") {
+                    HStack(spacing: 10) {
+                        Label(model.fullDiskAccess ? "On" : "Off",
+                              systemImage: model.fullDiskAccess ? "checkmark.circle.fill" : "exclamationmark.circle")
+                            .foregroundStyle(model.fullDiskAccess ? .green : .orange)
+                        Button("Open System Settings") { NSWorkspace.shared.open(FullDiskAccess.settingsURL) }
+                    }
+                }
+            } footer: {
+                Text(model.fullDiskAccess
+                     ? "The shared shell can reach Documents, Desktop, Downloads, iCloud Drive and Mail, like your own Terminal."
+                     : "Without it, the shared shell can't list Documents, Desktop, Downloads, iCloud Drive or Mail, and macOS may ask you mid-session. After you turn it on, quit and reopen Knock.")
+                    .foregroundStyle(.secondary)
+            }
+            Section {
+                Picker("When a session starts", selection: $s.guestInputDefault) {
+                    Text("Allow typing").tag(true)
+                    Text("Watch only").tag(false)
+                }
+                .disabled(s.isManaged("guest.input"))
+                Toggle("Only signed-in guests", isOn: $s.verifiedGuestsOnly)
+                    .disabled(s.isManaged("guest.verified_only"))
+                LabeledContent("Recording") {
+                    HStack(spacing: 10) {
+                        Text(s.hostRecording.label).foregroundStyle(.secondary)
+                        Button("Change…", action: showSessions)
+                    }
+                }
+            } header: {
+                Text("Guests")
+            } footer: {
+                Text("Watch only starts each session in Hands off; turn it off from the toolbar to let them type. Only signed-in guests turns away anyone who isn't signed in, without asking you. If your relay has no sign-in, that means every knock.")
+                    .foregroundStyle(.secondary)
+            }
+            Section {
+                Label("Anyone you let in can do what you can do in that shell. Turn on Hands off before you type a password.", systemImage: "hand.raised.fill")
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .formStyle(.grouped)
+        .onAppear(perform: model.refreshFullDiskAccess)
     }
 }

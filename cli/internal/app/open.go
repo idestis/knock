@@ -104,6 +104,9 @@ func (h *host) waiting() {
 	if !h.guestInput {
 		mode = " Guests start in Hands off (view-only)."
 	}
+	if h.cfg.GuestVerifiedOnly {
+		mode += " Knocks from people who aren't signed in are turned away."
+	}
 	ui.Note("Waiting for a knock. Ctrl-C closes your door.%s", mode)
 }
 
@@ -226,9 +229,14 @@ func (h *host) handle(ctx context.Context, ev client.Event) error {
 	switch ev.Type {
 	case protocol.TypeKnockIncoming:
 		var k protocol.KnockIncoming
-		if ev.Decode(&k) == nil {
-			h.queue = append(h.queue, k)
+		if ev.Decode(&k) != nil {
+			return nil
 		}
+		if turnAway(h.cfg, k) {
+			h.decline(ctx, k)
+			return nil
+		}
+		h.queue = append(h.queue, k)
 	case protocol.TypeKnockCancelled:
 		var r protocol.KnockRef
 		if ev.Decode(&r) != nil {
@@ -275,6 +283,25 @@ func (h *host) handle(ctx context.Context, ev client.Event) error {
 		return h.reconnect(ctx, "The relay is restarting.")
 	}
 	return nil
+}
+
+// turnAway reports whether guest.verified_only declines this knock before
+// the host is asked. It only ever declines: letting someone in takes a "y".
+func turnAway(cfg config.Config, k protocol.KnockIncoming) bool {
+	return cfg.GuestVerifiedOnly && !k.From.Verified
+}
+
+// decline answers no for the host, in the background, and leaves a quiet note.
+func (h *host) decline(ctx context.Context, k protocol.KnockIncoming) {
+	c := h.c
+	go func() {
+		rctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
+		_ = c.RequestInto(rctx, protocol.TypeKnockAnswer, protocol.KnockAnswer{KnockID: k.KnockID, Allow: false}, nil)
+	}()
+	if h.prompting == nil {
+		ui.Note("Turned away %s, who isn't signed in (guest.verified_only).", k.From.Name)
+	}
 }
 
 func (h *host) runSession(ctx context.Context, ev client.Event) error {

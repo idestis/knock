@@ -34,10 +34,13 @@ type Config struct {
 	SessionsDir   string
 	RetentionDays int
 	GuestInput    string // allow or view-only
-	KnockNotch    bool
-	KnockTimeout  int
-	ShellCommand  string
-	UnknownKeys   []string
+	// GuestVerifiedOnly turns away knocks from people who aren't signed in,
+	// before the host is asked. It can only decline, never let anyone in.
+	GuestVerifiedOnly bool
+	KnockNotch        bool
+	KnockTimeout      int
+	ShellCommand      string
+	UnknownKeys       []string
 }
 
 // Inputs are the sources Load combines. Zero values mean "not given".
@@ -49,7 +52,7 @@ type Inputs struct {
 
 var known = map[string]bool{
 	"relay.url": true, "auth.domain": true, "sessions.save": true, "sessions.dir": true,
-	"sessions.retention_days": true, "guest.input": true, "knock.notch": true,
+	"sessions.retention_days": true, "guest.input": true, "guest.verified_only": true, "knock.notch": true,
 	"knock.timeout_seconds": true, "shell.command": true,
 }
 
@@ -113,6 +116,12 @@ func Load(in Inputs) (Config, error) {
 			return c, fmt.Errorf("%s: guest.input must be allow or view-only", path)
 		}
 		c.GuestInput = v
+	}
+	if v, ok := kv["guest.verified_only"]; ok {
+		if v != "true" && v != "false" {
+			return c, fmt.Errorf("%s: guest.verified_only must be true or false", path)
+		}
+		c.GuestVerifiedOnly = v == "true"
 	}
 	if v, ok := kv["knock.notch"]; ok {
 		c.KnockNotch = v == "true"
