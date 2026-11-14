@@ -18,11 +18,17 @@ Stored in the login Keychain as a generic password:
 - service `io.github.idestis.knock`, account `session`
 - value: the JSON body returned by `POST /v1/auth/token` / `POST /v1/auth/refresh`
   (`access_token`, `refresh_token`, `expires_at`, `refresh_expires_at`, `user`).
+  `user` is the relay's identity: `id`, `name`, `email`, `login` (GitHub), `provider`, `verified`, `avatar`.
 
 Clients refresh the access token when it has less than 5 minutes left, and save
 the rotated refresh token. The refresh token lasts 90 days and slides on every
 refresh, so a user who opens Knock at least once a quarter never signs in again.
 No entry means anonymous.
+
+If the relay refuses the access token at `hello` (`unauthorised`), clients refresh
+once even if the token looks valid, and delete the entry when the refresh is
+refused (HTTP 401). A refresh that fails because the relay is unreachable keeps
+the entry.
 
 ## Door and code formats
 

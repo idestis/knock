@@ -56,11 +56,13 @@ knock/
 
 ## 4. Identity
 
-- Both sides sign in with Google once. The app uses the authorisation-code flow with PKCE and a loopback redirect; the CLI does the same, with the device flow as a fallback for headless use.
-- The client sends its Google ID token in the first WebSocket message. The relay verifies signature, audience, expiry and the hosted-domain (`hd`) claim, and rejects anything outside our Workspace domain.
-- The relay then issues its own short-lived session token, so the Google token is not resent.
-- Tokens live in the macOS Keychain, shared by the app and the CLI.
-- The name, email and device name shown on a knock come from the verified token and the relay, never from text the knocker typed.
+- People sign in with Google or GitHub, brokered by the relay. The operator registers the OAuth apps and gives the relay the client IDs and secrets; clients never hold provider secrets. Setup: `docs/RELAY_SIGN_IN.md`.
+- Clients discover providers with `GET /v1/auth/providers` (`{providers, sign_in_required}`), then run the flow: `/v1/auth/{provider}/start` with an S256 PKCE challenge and a `knock://` or loopback redirect, the provider calls the relay back, the relay redirects the client with a one-time grant (2 min, single use), and the client trades grant plus verifier at `POST /v1/auth/token`. The app uses `ASWebAuthenticationSession`; the CLI a loopback listener on 127.0.0.1.
+- The relay reads the profile with the provider token and drops it. Optional restrictions are checked there: `KNOCK_GOOGLE_DOMAIN` against Google's `hd` claim, `KNOCK_GITHUB_ORG` against an active org membership. Accounts need a verified email (Google) or come with their GitHub username.
+- The relay issues its own HMAC-signed tokens: a 1-hour access token, sent in `hello`, and a 90-day sliding refresh token (`POST /v1/auth/refresh`). Tokens carry the restriction they passed, so changing it, or removing the provider, stops refreshes.
+- Anonymous use: allowed when no provider is set (local dev); refused once one is, unless `KNOCK_ALLOW_ANONYMOUS=true`. Refusal is the `anonymous_not_allowed` hello error.
+- Tokens live in the macOS Keychain (`docs/LOCAL_STATE.md`), shared by the app and the CLI. When the relay refuses an access token, a client refreshes once, and signs out if that fails too.
+- The name, email, GitHub login and provider shown on a knock come from the relay's token, never from text the knocker typed. Anonymous knockers show the name they typed, marked *not verified*.
 
 ## 5. Doors, codes and hashes
 
