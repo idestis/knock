@@ -37,11 +37,23 @@ Sign-in
   Setup guide: https://github.com/idestis/knock/blob/main/docs/RELAY_SIGN_IN.md
 
 Notes
-  - State is in memory (store.type=memory): one replica, and a restart or upgrade ends every live session.
+{{- if eq .Values.store.type "valkey" }}
+  - Door registrations are in Valkey (Secret {{ .Values.store.valkey.existingSecret }}): door ownership survives
+    restarts. Knocks and live sessions are still in the pod: a restart or upgrade ends every live session.
+{{- else }}
+  - State is in memory (store.type=memory): one replica, and a restart or upgrade ends every live session
+    and forgets every door. Hosts win their door ids back with signed claims, which need a stable
+    KNOCK_TOKEN_SECRET. Use store.type=valkey to keep doors across restarts.
+{{- end }}
 {{- if not .Values.tokenSecret.existingSecret }}
 {{- if not .Values.tokenSecret.value }}
   - KNOCK_TOKEN_SECRET was generated and is kept in Secret {{ include "knock-relay.secretName" . }}; upgrades reuse it.
 {{- end }}
+{{- end }}
+{{- if and .Values.ingress.enabled (or (eq $providers 0) (eq $anon "true")) (not (.Values.trustedProxies | default "" | toString | trim)) }}
+  - WARNING: anonymous knocks are allowed behind an ingress, but trustedProxies is empty, so every
+    anonymous knocker shares the ingress's address and its rate limits. Set trustedProxies to your
+    ingress controller's pod CIDR.
 {{- end }}
 {{- if .Values.ingress.enabled }}
   - Sessions are long-lived WebSockets: make sure your ingress proxy timeouts allow that

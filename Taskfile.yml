@@ -77,6 +77,11 @@ tasks:
     cmds:
       - go run ./relay/cmd/knockd -addr 127.0.0.1:8787
 
+  valkey:run:
+    desc: Run a throwaway Valkey on 127.0.0.1:6379 for KNOCK_STORE=valkey (KNOCK_VALKEY_URL=redis://127.0.0.1:6379/0)
+    cmds:
+      - docker run --rm -p 127.0.0.1:6379:6379 valkey/valkey:8.0.2
+
   relay:build:
     desc: Build knockd for this machine
     cmds:

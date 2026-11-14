@@ -14,8 +14,8 @@ Then point Knock.app at the relay in **Settings → General → Relay**, or set 
 
 ## What 0.1.0 can do
 
-- **One replica, state in memory.** Knocks, doors and live sessions live in the pod. A restart or upgrade ends every session ("Relay restarted, knock again"). The chart uses the `Recreate` strategy and fails the render if `replicaCount` isn't 1.
-- **`store.type` is `memory` only.** A shared store for several replicas is planned; the `store` block is where it will plug in. Any other value fails the install for now.
+- **One replica.** Knocks, live sessions and rate limits live in the pod. A restart or upgrade ends every session ("Relay restarted, knock again"). The chart uses the `Recreate` strategy and fails the render if `replicaCount` isn't 1: pod-to-pod forwarding isn't built yet.
+- **Door registrations in memory or Valkey.** `store.type: memory` (the default) forgets every door on restart; a host gets its door id back with the signed claim the relay gave it, as long as `KNOCK_TOKEN_SECRET` stays the same. `store.type: valkey` keeps which key holds each door id, its owner and its current code hash in Valkey (or Redis), so ownership survives restarts. Records expire `doorTTL` after the host leaves; open doors refresh theirs every minute.
 - **Draining.** On SIGTERM knockd stops taking knocks and waits up to `drainGrace` for live sessions to end. `terminationGracePeriodSeconds` must be longer, and the chart checks that.
 
 ## Examples
@@ -95,8 +95,9 @@ service:
 
 ## Secrets
 
-- **`KNOCK_TOKEN_SECRET`** signs the relay's own access and refresh tokens. With neither `tokenSecret.existingSecret` nor `tokenSecret.value`, the chart generates 64 random characters on install and reads them back from the live Secret on every upgrade, so sign-ins survive. Tools that render without cluster access (`helm template`, Argo CD) can't read it back and would rotate it on every sync, signing everyone out: use `existingSecret` there.
+- **`KNOCK_TOKEN_SECRET`** signs the relay's own access and refresh tokens, and the door claims hosts use to win their door ids back after a restart. With neither `tokenSecret.existingSecret` nor `tokenSecret.value`, the chart generates 64 random characters on install and reads them back from the live Secret on every upgrade, so sign-ins survive. Tools that render without cluster access (`helm template`, Argo CD) can't read it back and would rotate it on every sync, signing everyone out: use `existingSecret` there.
 - **Provider credentials** come from `auth.<provider>.clientId`/`clientSecret` (stored in the chart's Secret) or from `auth.<provider>.existingSecret` with the keys `clientIdKey`/`clientSecretKey`.
+- **`KNOCK_VALKEY_URL`** (with `store.type: valkey`) comes from `store.valkey.existingSecret`, key `store.valkey.existingSecretKey` (default `valkey-url`): `redis://[user:password@]host:6379/0`, `rediss://` for TLS, or `unix://`. Create it with `kubectl create secret generic knock-relay-valkey --from-literal=valkey-url='redis://:password@valkey:6379/0'`.
 - Secrets reach knockd only as `secretKeyRef` env vars, never through a ConfigMap. knockd doesn't log them.
 - Changing a Secret's contents doesn't restart the pod. Restart it yourself (`kubectl rollout restart deploy/knock-relay`), knowing it ends live sessions.
 
@@ -110,11 +111,15 @@ service:
 | `image.pullPolicy` | `IfNotPresent` | |
 | `imagePullSecrets` | `[]` | |
 | `nameOverride`, `fullnameOverride` | `""` | |
-| `store.type` | `memory` | Only `memory` in 0.1.0 |
-| `replicaCount` | `1` | Must be 1 with the memory store |
+| `store.type` | `memory` | `KNOCK_STORE`: where door registrations live, `memory` or `valkey` |
+| `store.valkey.existingSecret` | `""` | Secret holding `KNOCK_VALKEY_URL`. Required with `valkey` |
+| `store.valkey.existingSecretKey` | `valkey-url` | Key in that Secret |
+| `doorTTL` | `24h` | `KNOCK_DOOR_TTL`: how long a door whose host left stays known before its id is free again |
+| `replicaCount` | `1` | Must be 1 until pod-to-pod forwarding exists |
 | `publicURL` | `""` | `KNOCK_PUBLIC_URL`. Required with a provider. Empty: `https://<first ingress host>`, or knockd's local default |
 | `relayName` | `knock-relay` | `KNOCK_RELAY_NAME` |
 | `allowAnonymous` | `null` | `KNOCK_ALLOW_ANONYMOUS`. `null`: anonymous only without providers; `true`: anonymous next to sign-in; `false`: sign-in required (needs a provider) |
+| `trustedProxies` | `""` | `KNOCK_TRUSTED_PROXIES`: CIDRs or addresses whose `X-Forwarded-For` knockd believes. Empty ignores the header. Behind an ingress with anonymous use, set it to the ingress controller's pod CIDR, or anonymous knockers share one address and its rate limits. Leave it empty behind the Tailscale operator |
 | `knockTimeoutSeconds` | `60` | `KNOCK_KNOCK_TIMEOUT_SECONDS`: how long a knock waits for the host |
 | `drainGrace` | `50s` | `KNOCK_DRAIN_GRACE`: how long a stopping relay waits for live sessions |
 | `terminationGracePeriodSeconds` | `60` | Must be longer than `drainGrace` |

@@ -13,14 +13,27 @@ imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
-# Where the relay keeps knocks, doors and sessions.
-# 0.1.0 supports memory only: state lives in the one pod, so a restart ends every session
-# ("Relay restarted, knock again"). A shared store for several replicas is planned; until then
-# any other type fails the install.
+# Where the relay keeps door registrations: which door key holds each door id, its owner and its
+# current code hash (KNOCK_STORE). Knocks, live sessions and rate limits always stay in the pod, so
+# a restart still ends every session ("Relay restarted, knock again").
+#   memory  in the pod. A restart forgets every door; hosts win their ids back with the signed claim
+#           the relay gave them, which only works while KNOCK_TOKEN_SECRET stays the same.
+#   valkey  in Valkey (or Redis), so door ownership survives restarts and upgrades. Records expire
+#           doorTTL after the host leaves; open doors refresh theirs every minute.
 store:
   type: memory
+  valkey:
+    # Secret holding the URL (KNOCK_VALKEY_URL): redis://[user:password@]host:6379/0, rediss:// for
+    # TLS, or unix://. Required with store.type=valkey. The URL is a secret; knockd never logs it.
+    existingSecret: ""
+    existingSecretKey: valkey-url
 
-# Must be 1 while store.type is memory. The chart fails otherwise.
+# How long a door whose host has left stays known before its id is free again (KNOCK_DOOR_TTL),
+# in memory and in the store. A Go duration.
+doorTTL: 24h
+
+# Must be 1 with either store: knocks and live sessions live in one pod, and pod-to-pod forwarding
+# isn't built yet. The chart fails otherwise.
 replicaCount: 1
 
 # The relay's public URL (KNOCK_PUBLIC_URL), as browsers and clients reach it. Sign-in providers
@@ -38,6 +51,17 @@ relayName: knock-relay
 #   false         sign-in required. Needs a provider, or the chart (and knockd) refuse to start.
 allowAnonymous: null
 
+# Proxies whose X-Forwarded-For knockd believes (KNOCK_TRUSTED_PROXIES): comma-separated CIDRs or
+# addresses. Anonymous knockers are rate-limited by IP; knockd takes it from the header only when
+# the connection comes from one of these, walking it right to left to the first untrusted hop.
+# Empty (the default) ignores the header, since any client can set it.
+#   - Behind an ingress controller, set this to its pod CIDR (or the proxy's addresses), or every
+#     anonymous knocker shares the ingress's address and its limits. Don't list ranges your users
+#     connect from directly, or they can pick their own address.
+#   - Behind the Tailscale operator (an L4 proxy that sets no header), leave it empty.
+# Signed-in knockers are limited by account, so this only matters with anonymous use.
+trustedProxies: ""
+
 # How long a knock waits for the host's answer (KNOCK_KNOCK_TIMEOUT_SECONDS).
 knockTimeoutSeconds: 60
 
@@ -48,8 +72,9 @@ drainGrace: 50s
 # for drainGrace values in seconds or minutes (50s, 2m).
 terminationGracePeriodSeconds: 60
 
-# KNOCK_TOKEN_SECRET signs the relay's own access and refresh tokens. Keep it stable, or everyone
-# signs in again after a restart. Rotating it on purpose signs everyone out.
+# KNOCK_TOKEN_SECRET signs the relay's own access and refresh tokens and the door claims hosts use
+# to win their door ids back. Keep it stable, or everyone signs in again after a restart and claims
+# stop working. Rotating it on purpose signs everyone out.
 tokenSecret:
   # Use a Secret you manage. Value: 32+ random bytes, e.g. openssl rand -base64 48.
   existingSecret: ""

@@ -4,8 +4,12 @@
 #   helm install knock-relay oci://ghcr.io/idestis/charts/knock-relay --version <release> -f values.yaml
 # This manifest stays for anyone who'd rather not use Helm.
 #
-# v0.1 keeps state in memory, so run ONE replica. The multi-replica design
-# (DynamoDB conditional writes + pod-to-pod forwarding) is DESIGN.md section 8.
+# Run ONE replica: knocks and live sessions live in the pod (pod-to-pod
+# forwarding isn't built yet; DESIGN.md section 8). Door registrations (which
+# key holds each door id) are in memory by default and forgotten on restart;
+# hosts win their ids back with signed claims, which need a stable
+# KNOCK_TOKEN_SECRET. To keep them across restarts, set KNOCK_STORE=valkey and
+# KNOCK_VALKEY_URL in the Secret below.
 # Expose it only on your tailnet (Tailscale operator below) or an internal LB.
 apiVersion: v1
 kind: Namespace
@@ -19,8 +23,8 @@ metadata:
   namespace: knock
 type: Opaque
 stringData:
-  # 32+ random bytes: openssl rand -base64 48. Keeps sign-ins valid across
-  # restarts; changing it signs everyone out.
+  # 32+ random bytes: openssl rand -base64 48. Keeps sign-ins and door claims
+  # valid across restarts; changing it signs everyone out.
   KNOCK_TOKEN_SECRET: "change-me"
   # Sign-in, brokered by the relay. Setup: docs/RELAY_SIGN_IN.md.
   # Callback URLs: KNOCK_PUBLIC_URL + /v1/auth/google/callback and /v1/auth/github/callback.
@@ -29,6 +33,10 @@ stringData:
   KNOCK_GOOGLE_CLIENT_SECRET: ""  # e.g. GOCSPX-...
   KNOCK_GITHUB_CLIENT_ID: ""      # e.g. Ov23li...
   KNOCK_GITHUB_CLIENT_SECRET: ""
+  # Door store: "memory" (default) or "valkey". The URL can carry a password;
+  # knockd never logs it. e.g. redis://:password@valkey.knock.svc:6379/0
+  KNOCK_STORE: "memory"
+  KNOCK_VALKEY_URL: ""
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -66,6 +74,13 @@ spec:
             - {name: KNOCK_GOOGLE_DOMAIN, value: ""}   # e.g. example.com (Workspace accounts only)
             - {name: KNOCK_GITHUB_ORG, value: ""}      # e.g. example-org (active members only)
             - {name: KNOCK_DRAIN_GRACE, value: "50s"}
+            # How long a door whose host left stays known before its id is free.
+            - {name: KNOCK_DOOR_TTL, value: "24h"}
+            # Proxies whose X-Forwarded-For is believed (CIDRs, comma-separated).
+            # Keep it empty here: the Tailscale proxy is L4 and sets no header, so
+            # any X-Forwarded-For a client sends is made up. Behind an HTTP
+            # ingress, set it to the ingress controller's pod CIDR.
+            - {name: KNOCK_TRUSTED_PROXIES, value: ""}
           readinessProbe:
             httpGet: {path: /readyz, port: http}
           livenessProbe:

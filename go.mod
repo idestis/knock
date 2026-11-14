@@ -12,6 +12,7 @@ require (
 	github.com/coder/websocket v1.8.15
 	github.com/creack/pty v1.1.24
 	github.com/muesli/cancelreader v0.2.2
+	github.com/valkey-io/valkey-go v1.0.79
 	github.com/zalando/go-keyring v0.2.8
 	golang.org/x/term v0.48.0
 )

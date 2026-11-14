@@ -3,12 +3,14 @@ package auth
 import (
 	"context"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -18,6 +20,7 @@ import (
 	"unicode"
 
 	"github.com/idestis/knock/protocol"
+	"github.com/idestis/knock/relay/internal/ratelimit"
 )
 
 // Provider is one OAuth sign-in option.
@@ -44,6 +47,9 @@ type Config struct {
 	// SignInRequired is reported to clients so they can ask people to sign
 	// in before they connect. The hub enforces it.
 	SignInRequired bool
+	// ClientIP picks the address /start is rate limited by. Nil uses
+	// ClientIP, which matches the hub; wire both to the same function.
+	ClientIP func(*http.Request) string
 }
 
 // endpoints are the provider URLs; tests point them at fakes.
@@ -65,11 +71,17 @@ const (
 	pendingTTL = 10 * time.Minute
 	grantTTL   = 2 * time.Minute
 	maxPending = 10_000 // sign-ins in flight; beyond this /start answers 503
+	// startsPerIP caps /start per client address per pendingTTL, so one
+	// client can't fill maxPending and lock everyone else out of sign-in.
+	startsPerIP = 30
+	// maxRedirect bounds the stored redirect_uri. The real ones are
+	// knock://auth/callback and http://127.0.0.1:PORT/callback.
+	maxRedirect = 256
 )
 
 // Service runs the relay-mediated OAuth flow:
 //
-//  1. Client opens /v1/auth/{provider}/start?redirect_uri=knock://auth&state=S&code_challenge=C&code_challenge_method=S256
+//  1. Client opens /v1/auth/{provider}/start?redirect_uri=knock://auth/callback&state=S&code_challenge=C&code_challenge_method=S256
 //  2. Relay redirects to the provider; the provider calls back the relay.
 //  3. Relay redirects to redirect_uri?code=G&state=S with a one-time grant.
 //  4. Client POSTs /v1/auth/token {code: G, code_verifier} and gets an access
@@ -83,6 +95,8 @@ type Service struct {
 	signer    *Signer
 	providers map[string]*Provider
 	hc        *http.Client
+	clientIP  func(*http.Request) string
+	starts    *ratelimit.Limiter // /start per client address
 
 	mu      sync.Mutex
 	pending map[string]pendingAuth // keyed by relay state
@@ -115,7 +129,11 @@ func NewService(cfg Config, signer *Signer) *Service {
 
 func newService(cfg Config, signer *Signer, ep endpoints) *Service {
 	s := &Service{cfg: cfg, signer: signer, providers: map[string]*Provider{},
-		hc: &http.Client{Timeout: 15 * time.Second}, pending: map[string]pendingAuth{}, grants: map[string]grant{}}
+		hc: &http.Client{Timeout: 15 * time.Second}, pending: map[string]pendingAuth{}, grants: map[string]grant{},
+		clientIP: cfg.ClientIP, starts: ratelimit.New(startsPerIP, pendingTTL)}
+	if s.clientIP == nil {
+		s.clientIP = ClientIP
+	}
 	if cfg.GoogleID != "" {
 		s.providers["google"] = googleProvider(cfg, ep)
 	}
@@ -159,13 +177,35 @@ func (s *Service) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/auth/refresh", s.refresh)
 }
 
+// ClientIP is the address a request came from: the first X-Forwarded-For
+// entry, else the peer. It matches the hub's clientIP.
+func ClientIP(r *http.Request) string {
+	if f := r.Header.Get("X-Forwarded-For"); f != "" {
+		return strings.TrimSpace(strings.Split(f, ",")[0])
+	}
+	host, _, _ := net.SplitHostPort(r.RemoteAddr)
+	return host
+}
+
+// validRedirect accepts only what the clients send: the app's
+// knock://auth/callback and the CLI's http://127.0.0.1:PORT/callback
+// (localhost and [::1] too), with nothing else in the URL.
 func validRedirect(u string) bool {
-	if strings.HasPrefix(u, "knock://") {
+	if len(u) > maxRedirect {
+		return false
+	}
+	if u == "knock://auth/callback" {
 		return true
 	}
 	p, err := url.Parse(u)
-	if err != nil || p.Scheme != "http" {
+	if err != nil || p.Scheme != "http" || p.User != nil || p.Path != "/callback" ||
+		p.RawQuery != "" || p.ForceQuery || p.Fragment != "" || p.RawPath != "" {
 		return false
+	}
+	if port := p.Port(); port != "" {
+		if n, err := strconv.Atoi(port); err != nil || n < 1 || n > 65535 {
+			return false
+		}
 	}
 	h := p.Hostname()
 	return h == "127.0.0.1" || h == "localhost" || h == "::1"
@@ -184,6 +224,10 @@ func (s *Service) start(w http.ResponseWriter, r *http.Request) {
 	if !validRedirect(redirect) || clientState == "" || len(clientState) > 512 || len(challenge) != 43 ||
 		(method != "" && method != "S256") {
 		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	if s.starts.Add(s.clientIP(r)) > startsPerIP {
+		http.Error(w, "too many sign-ins from here, try again in a few minutes", http.StatusTooManyRequests)
 		return
 	}
 	state := RandomString(24)
@@ -322,7 +366,8 @@ func (s *Service) token(w http.ResponseWriter, r *http.Request) {
 	delete(s.grants, in.Code) // one try per grant, right or wrong
 	s.mu.Unlock()
 	sum := sha256.Sum256([]byte(in.Verifier))
-	if !ok || time.Now().After(g.expires) || base64.RawURLEncoding.EncodeToString(sum[:]) != g.challenge {
+	got := base64.RawURLEncoding.EncodeToString(sum[:])
+	if !ok || time.Now().After(g.expires) || subtle.ConstantTimeCompare([]byte(got), []byte(g.challenge)) != 1 {
 		writeJSON(w, 400, map[string]string{"error": "invalid_grant"})
 		return
 	}

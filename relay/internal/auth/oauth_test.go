@@ -276,6 +276,22 @@ func TestStartValidation(t *testing.T) {
 		{"unknown provider", "gitlab", func(url.Values) {}, 404},
 		{"https redirect", "google", func(v url.Values) { v.Set("redirect_uri", "https://evil.example/cb") }, 400},
 		{"remote http redirect", "google", func(v url.Values) { v.Set("redirect_uri", "http://evil.example/cb") }, 400},
+		{"cli loopback", "google", func(v url.Values) { v.Set("redirect_uri", "http://127.0.0.1:49152/callback") }, 302},
+		{"localhost loopback", "google", func(v url.Values) { v.Set("redirect_uri", "http://localhost:49152/callback") }, 302},
+		{"ipv6 loopback", "google", func(v url.Values) { v.Set("redirect_uri", "http://[::1]:49152/callback") }, 302},
+		{"other knock path", "google", func(v url.Values) { v.Set("redirect_uri", "knock://evil/callback") }, 400},
+		{"knock with query", "google", func(v url.Values) { v.Set("redirect_uri", "knock://auth/callback?x=1") }, 400},
+		{"loopback other path", "google", func(v url.Values) { v.Set("redirect_uri", "http://127.0.0.1:5555/steal") }, 400},
+		{"loopback with query", "google", func(v url.Values) { v.Set("redirect_uri", "http://127.0.0.1:5555/callback?x=1") }, 400},
+		{"loopback with fragment", "google", func(v url.Values) { v.Set("redirect_uri", "http://127.0.0.1:5555/callback#x") }, 400},
+		{"loopback with userinfo", "google", func(v url.Values) { v.Set("redirect_uri", "http://u@127.0.0.1:5555/callback") }, 400},
+		{"loopback bad port", "google", func(v url.Values) { v.Set("redirect_uri", "http://127.0.0.1:99999/callback") }, 400},
+		{"huge redirect", "google", func(v url.Values) {
+			v.Set("redirect_uri", "http://127.0.0.1:5555/callback"+strings.Repeat("/", 300))
+		}, 400},
+		{"huge knock redirect", "google", func(v url.Values) {
+			v.Set("redirect_uri", "knock://auth/callback/"+strings.Repeat("A", 64<<10))
+		}, 400},
 		{"no state", "google", func(v url.Values) { v.Del("state") }, 400},
 		{"short challenge", "google", func(v url.Values) { v.Set("code_challenge", "abc") }, 400},
 		{"plain method", "google", func(v url.Values) { v.Set("code_challenge_method", "plain") }, 400},
@@ -430,5 +446,82 @@ func TestTokens(t *testing.T) {
 		if _, err := s.Verify(tc.tok, tc.kind); err == nil {
 			t.Errorf("%s: accepted", name)
 		}
+	}
+}
+
+func (h *harness) startFrom(forwardedFor string) int {
+	h.t.Helper()
+	_, challenge := pkce()
+	v := url.Values{"redirect_uri": {"knock://auth/callback"}, "state": {"s"}, "code_challenge": {challenge}}
+	req, _ := http.NewRequest(http.MethodGet, h.relay.URL+"/v1/auth/google/start?"+v.Encode(), nil)
+	if forwardedFor != "" {
+		req.Header.Set("X-Forwarded-For", forwardedFor)
+	}
+	resp, err := noFollow.Do(req)
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	resp.Body.Close()
+	return resp.StatusCode
+}
+
+// One client can't fill the global pending table and lock everyone else
+// out of sign-in.
+func TestStartLimitedPerClient(t *testing.T) {
+	h := newHarness(t, Config{})
+	for i := range startsPerIP {
+		if got := h.startFrom("203.0.113.7"); got != http.StatusFound {
+			t.Fatalf("start %d: %d", i, got)
+		}
+	}
+	if got := h.startFrom("203.0.113.7, 10.0.0.1"); got != http.StatusTooManyRequests {
+		t.Fatalf("over the limit: %d", got)
+	}
+	h.svc.mu.Lock()
+	n := len(h.svc.pending)
+	h.svc.mu.Unlock()
+	if n != startsPerIP {
+		t.Fatalf("pending %d, want %d", n, startsPerIP)
+	}
+	// Someone else still gets in, and so does the direct peer.
+	if got := h.startFrom("198.51.100.2"); got != http.StatusFound {
+		t.Fatalf("other client: %d", got)
+	}
+	if got := h.startFrom(""); got != http.StatusFound {
+		t.Fatalf("direct client: %d", got)
+	}
+}
+
+func TestStartUsesConfiguredClientIP(t *testing.T) {
+	h := newHarness(t, Config{ClientIP: func(*http.Request) string { return "same" }})
+	for range startsPerIP {
+		h.startFrom(RandomString(8))
+	}
+	// A spoofed X-Forwarded-For doesn't help once the relay picks the address.
+	if got := h.startFrom("192.0.2.99"); got != http.StatusTooManyRequests {
+		t.Fatalf("got %d, want 429", got)
+	}
+}
+
+func TestClientIP(t *testing.T) {
+	r := httptest.NewRequest(http.MethodGet, "/", nil)
+	r.RemoteAddr = "192.0.2.1:1234"
+	if got := ClientIP(r); got != "192.0.2.1" {
+		t.Fatalf("peer: %q", got)
+	}
+	r.Header.Set("X-Forwarded-For", " 203.0.113.7 , 10.0.0.1")
+	if got := ClientIP(r); got != "203.0.113.7" {
+		t.Fatalf("forwarded: %q", got)
+	}
+}
+
+// A wrong verifier is still refused with the constant-time compare.
+func TestTokenWrongVerifier(t *testing.T) {
+	h := newHarness(t, Config{})
+	_, challenge := pkce()
+	state, _, _ := h.start("google", challenge)
+	back := h.callback("google", state, "g-ok")
+	if code, _ := h.post("/v1/auth/token", map[string]string{"code": back.Get("code"), "code_verifier": "wrong"}); code != 400 {
+		t.Fatalf("wrong verifier: %d", code)
 	}
 }

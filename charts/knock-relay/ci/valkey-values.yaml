@@ -1,0 +1,8 @@
+# Door registrations in Valkey, URL from an existing Secret.
+tokenSecret:
+  existingSecret: knock-relay-token
+store:
+  type: valkey
+  valkey:
+    existingSecret: knock-relay-valkey
+doorTTL: 48h

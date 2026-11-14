@@ -86,6 +86,14 @@ func (s *Signer) Verify(token, kind string) (Claims, error) {
 	return c, nil
 }
 
+// Derive returns a key for another use of the relay's secret, such as door
+// claims. Its input can't collide with a token signature's ("knock.v1.").
+func (s *Signer) Derive(label string) []byte {
+	m := hmac.New(sha256.New, s.key)
+	m.Write([]byte("knock.derive." + label))
+	return m.Sum(nil)
+}
+
 func (s *Signer) sign(p string) string {
 	m := hmac.New(sha256.New, s.key)
 	m.Write([]byte("knock.v1." + p))

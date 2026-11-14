@@ -12,11 +12,9 @@ metadata:
     {{- include "knock-relay.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicaCount }}
-  {{- if eq .Values.store.type "memory" }}
-  # State is in memory: never run the old and new pod side by side.
+  # Knocks and sessions live in the pod: never run the old and new pod side by side.
   strategy:
     type: Recreate
-  {{- end }}
   selector:
     matchLabels:
       {{- include "knock-relay.selectorLabels" . | nindent 6 }}
@@ -65,10 +63,25 @@ spec:
             - name: KNOCK_ALLOW_ANONYMOUS
               value: {{ $anon | quote }}
             {{- end }}
+            {{- with .Values.trustedProxies | default "" | toString | trim }}
+            - name: KNOCK_TRUSTED_PROXIES
+              value: {{ . | quote }}
+            {{- end }}
             - name: KNOCK_KNOCK_TIMEOUT_SECONDS
               value: {{ .Values.knockTimeoutSeconds | quote }}
             - name: KNOCK_DRAIN_GRACE
               value: {{ .Values.drainGrace | quote }}
+            - name: KNOCK_STORE
+              value: {{ .Values.store.type | quote }}
+            - name: KNOCK_DOOR_TTL
+              value: {{ .Values.doorTTL | quote }}
+            {{- if eq .Values.store.type "valkey" }}
+            - name: KNOCK_VALKEY_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.store.valkey.existingSecret }}
+                  key: {{ .Values.store.valkey.existingSecretKey }}
+            {{- end }}
             - name: KNOCK_TOKEN_SECRET
               valueFrom:
                 secretKeyRef:

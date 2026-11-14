@@ -93,11 +93,18 @@ true
 
 {{/* Fails the render on settings knockd can't run with. */}}
 {{- define "knock-relay.validate" -}}
-{{- if ne (toString .Values.store.type) "memory" }}
-{{- fail (printf "store.type=%q is not supported in knock-relay %s: only \"memory\" is. A shared store for several replicas is planned." (toString .Values.store.type) .Chart.AppVersion) }}
+{{- $store := toString .Values.store.type }}
+{{- if not (has $store (list "memory" "valkey")) }}
+{{- fail (printf "store.type=%q is not supported: use \"memory\" or \"valkey\"." $store) }}
+{{- end }}
+{{- if and (eq $store "valkey") (not .Values.store.valkey.existingSecret) }}
+{{- fail "store.type=valkey needs store.valkey.existingSecret: a Secret holding the Valkey URL (redis://, rediss:// or unix://) under store.valkey.existingSecretKey." }}
 {{- end }}
 {{- if ne (int .Values.replicaCount) 1 }}
-{{- fail "replicaCount must be 1 with store.type=memory: relay state lives in one pod." }}
+{{- fail "replicaCount must be 1: knocks and live sessions live in one pod (the store keeps only door registrations), and pod-to-pod forwarding isn't built yet." }}
+{{- end }}
+{{- if not (regexMatch "^([0-9]+(\\.[0-9]+)?(h|m|s|ms))+$" (toString .Values.doorTTL)) }}
+{{- fail (printf "doorTTL=%q: want a Go duration such as 24h or 90m." (toString .Values.doorTTL)) }}
 {{- end }}
 {{- range $p := list "google" "github" }}
 {{- $c := index $.Values.auth $p }}
