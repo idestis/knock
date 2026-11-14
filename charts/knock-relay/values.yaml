@@ -1,0 +1,185 @@
+# Values for knock-relay (knockd). Every KNOCK_* variable the relay reads has a value here.
+# Sign-in setup for Google and GitHub: https://github.com/idestis/knock/blob/main/docs/RELAY_SIGN_IN.md
+
+image:
+  repository: ghcr.io/idestis/knock-relay
+  # Defaults to the chart's appVersion. Release tags publish :X.Y.Z (no "v").
+  tag: ""
+  # Pin by digest (sha256:...). When set, it wins over the tag.
+  digest: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# Where the relay keeps knocks, doors and sessions.
+# 0.1.0 supports memory only: state lives in the one pod, so a restart ends every session
+# ("Relay restarted, knock again"). A shared store for several replicas is planned; until then
+# any other type fails the install.
+store:
+  type: memory
+
+# Must be 1 while store.type is memory. The chart fails otherwise.
+replicaCount: 1
+
+# The relay's public URL (KNOCK_PUBLIC_URL), as browsers and clients reach it. Sign-in providers
+# send people back to <publicURL>/v1/auth/{google,github}/callback, so it's required once a
+# provider is set. Empty: https://<first ingress host> when the ingress is on, otherwise knockd's
+# default (http://127.0.0.1:8787, fine for local testing only).
+publicURL: ""
+
+# Shown to clients in hello replies (KNOCK_RELAY_NAME).
+relayName: knock-relay
+
+# KNOCK_ALLOW_ANONYMOUS, tri-state:
+#   null (unset)  anonymous when no provider is set; sign-in required once one is.
+#   true          anonymous use stays allowed next to sign-in (marked "not verified").
+#   false         sign-in required. Needs a provider, or the chart (and knockd) refuse to start.
+allowAnonymous: null
+
+# How long a knock waits for the host's answer (KNOCK_KNOCK_TIMEOUT_SECONDS).
+knockTimeoutSeconds: 60
+
+# On SIGTERM knockd stops taking knocks and waits up to this long (a Go duration) for live
+# sessions to end (KNOCK_DRAIN_GRACE). Keep it below terminationGracePeriodSeconds.
+drainGrace: 50s
+# Must be longer than drainGrace, or Kubernetes kills the pod mid-drain. The chart checks this
+# for drainGrace values in seconds or minutes (50s, 2m).
+terminationGracePeriodSeconds: 60
+
+# KNOCK_TOKEN_SECRET signs the relay's own access and refresh tokens. Keep it stable, or everyone
+# signs in again after a restart. Rotating it on purpose signs everyone out.
+tokenSecret:
+  # Use a Secret you manage. Value: 32+ random bytes, e.g. openssl rand -base64 48.
+  existingSecret: ""
+  existingSecretKey: token-secret
+  # Or set it here (stored in the chart's Secret). Not recommended outside testing.
+  value: ""
+  # With neither, the chart generates one on install and reuses it on every upgrade (it reads the
+  # live Secret with lookup). Tools that render without cluster access (helm template, Argo CD)
+  # regenerate it each time: use existingSecret there.
+
+# Sign-in providers. Leave both client IDs empty for an anonymous-only relay. Each provider takes
+# its credentials from values (stored in the chart's Secret) or from a Secret you manage.
+auth:
+  google:
+    clientId: ""        # e.g. 1234567890-abc.apps.googleusercontent.com
+    clientSecret: ""    # e.g. GOCSPX-...
+    # Read clientId and clientSecret from this Secret instead.
+    existingSecret: ""
+    clientIdKey: google-client-id
+    clientSecretKey: google-client-secret
+    # Optional: only accounts from this Workspace domain (KNOCK_GOOGLE_DOMAIN), e.g. example.com.
+    domain: ""
+  github:
+    clientId: ""        # e.g. Ov23li...
+    clientSecret: ""
+    existingSecret: ""
+    clientIdKey: github-client-id
+    clientSecretKey: github-client-secret
+    # Optional: only active members of this org (KNOCK_GITHUB_ORG), e.g. example-org.
+    org: ""
+
+# Extra environment for knockd, as container env entries.
+extraEnv: []
+#  - name: KNOCK_SOMETHING
+#    value: "1"
+extraEnvFrom: []
+
+serviceAccount:
+  create: true
+  # Defaults to the release fullname when create is true, "default" otherwise.
+  name: ""
+  annotations: {}
+  # knockd never talks to the Kubernetes API.
+  automountServiceAccountToken: false
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: [ALL]
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    memory: 256Mi
+
+# The relay serves /healthz and /readyz on its HTTP port.
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: http
+  periodSeconds: 10
+  timeoutSeconds: 2
+  failureThreshold: 3
+readinessProbe:
+  httpGet:
+    path: /readyz
+    port: http
+  periodSeconds: 5
+  timeoutSeconds: 2
+  failureThreshold: 3
+
+service:
+  type: ClusterIP
+  port: 80
+  annotations: {}
+  # Tailscale Kubernetes operator, to put the relay on your tailnet only:
+  #   tailscale.com/expose: "true"
+  #   tailscale.com/hostname: knock
+
+ingress:
+  enabled: false
+  className: ""
+  # Sessions are long-lived WebSockets. Raise the proxy timeouts, or idle sessions drop after the
+  # default (60 s on ingress-nginx). For ingress-nginx:
+  #   nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+  #   nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+  #   cert-manager.io/cluster-issuer: letsencrypt
+  annotations: {}
+  hosts:
+    - host: knock.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+  #  - secretName: knock-relay-tls
+  #    hosts: [knock.example.com]
+
+# Prometheus Operator ServiceMonitor for /metrics (knock_* gauges). /metrics shares the public
+# port, so an ingress exposes it too; block it at your proxy if that matters to you.
+serviceMonitor:
+  enabled: false
+  interval: 30s
+  scrapeTimeout: 10s
+  labels: {}
+  # Prometheus Operator's namespace, if it only watches its own. Defaults to the release namespace.
+  namespace: ""
+
+# With one replica, a PDB of minAvailable: 1 blocks voluntary evictions (node drains) so they
+# don't cut live sessions; someone has to delete the pod by hand. Off by default.
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+  # maxUnavailable: 0
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""

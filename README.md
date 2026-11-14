@@ -149,7 +149,15 @@ Sign-in goes through your relay (OAuth with PKCE), so provider secrets stay on t
 docker run -p 8787:8787 -e KNOCK_TOKEN_SECRET="$(openssl rand -base64 48)" ghcr.io/idestis/knock-relay:latest
 ```
 
-Kubernetes: [`deploy/knock-relay.yaml`](deploy/knock-relay.yaml) (with a Tailscale-only service). Point the app at it in **Settings → General → Relay**, or set `relay.url` with MDM or in `~/.knock/config.toml`.
+Kubernetes: use the Helm chart (preferred). It's published with every release and versioned with it:
+
+```sh
+helm install knock-relay oci://ghcr.io/idestis/charts/knock-relay --version 0.1.0 -f values.yaml
+```
+
+Values, sign-in, ingress (WebSocket timeouts) and examples are in [`charts/knock-relay`](charts/knock-relay/README.md). A plain manifest with a Tailscale-only service is still in [`deploy/knock-relay.yaml`](deploy/knock-relay.yaml) if you'd rather not use Helm.
+
+Point the app at the relay in **Settings → General → Relay**, or set `relay.url` with MDM or in `~/.knock/config.toml`.
 
 | Variable | Meaning |
 |---|---|
@@ -158,6 +166,9 @@ Kubernetes: [`deploy/knock-relay.yaml`](deploy/knock-relay.yaml) (with a Tailsca
 | `KNOCK_ALLOW_ANONYMOUS` | Unset: anonymous when no provider is set, sign-in required once one is. `true` keeps anonymous use next to sign-in |
 | `KNOCK_GOOGLE_CLIENT_ID`, `_SECRET`, `KNOCK_GOOGLE_DOMAIN` | Google sign-in, optionally limited to one Workspace domain |
 | `KNOCK_GITHUB_CLIENT_ID`, `_SECRET`, `KNOCK_GITHUB_ORG` | GitHub sign-in, optionally limited to active members of one org |
+| `KNOCK_RELAY_NAME` | Name shown to clients (default `knock-relay`) |
+| `KNOCK_KNOCK_TIMEOUT_SECONDS` | How long a knock waits for the host (default 60) |
+| `KNOCK_DRAIN_GRACE` | On shutdown, how long to wait for live sessions to end (default `25s`) |
 
 OAuth callback URLs to register: `https://<relay>/v1/auth/google/callback` and `https://<relay>/v1/auth/github/callback`. Step-by-step setup for both providers is in [docs/RELAY_SIGN_IN.md](docs/RELAY_SIGN_IN.md).
 
@@ -188,13 +199,14 @@ client/     Go WebSocket client
 relay/      knockd (Go)
 cli/        knock (Go, Charm v2)
 mac/        Knock.app (SwiftUI, SwiftTerm, Sparkle), generated with XcodeGen
-deploy/     Kubernetes manifest
+charts/     Helm chart for the relay (task chart:lint)
+deploy/     Plain Kubernetes manifest
 docs/       Local state contract shared by the app and CLI
 design/     Logo and mocks
 landing/    The website at idestis.github.io/knock
 ```
 
-**Releasing** (maintainers): `task release:preview`, then `task release` (version from commits, or pin it: `task release -- 0.2.0`), then `task publish`. That builds, signs and notarizes the app and CLI, writes a Sparkle appcast, uploads everything to a GitHub release, and points the [Homebrew tap](https://github.com/idestis/homebrew-tap) (a checkout at `../homebrew-tap`, or `TAP_DIR=`) at the new version. One-time setup: `task signing:setup`, `task notary:setup`, `task sparkle:keys`.
+**Releasing** (maintainers): `task release:preview`, then `task release` (version from commits, or pin it: `task release -- 0.2.0`), then `task publish`. That builds, signs and notarizes the app and CLI, writes a Sparkle appcast, uploads everything to a GitHub release, and points the [Homebrew tap](https://github.com/idestis/homebrew-tap) (a checkout at `../homebrew-tap`, or `TAP_DIR=`) at the new version. Pushing the tag also publishes the relay image and the Helm chart (GitHub Actions); `task release` keeps `charts/knock-relay/Chart.yaml` on the same version. One-time setup: `task signing:setup`, `task notary:setup`, `task sparkle:keys`.
 
 Read [DESIGN.md](DESIGN.md) for the full spec and [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
 

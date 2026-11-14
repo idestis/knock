@@ -1,0 +1,27 @@
+# GitHub org sign-in behind ingress-nginx with TLS, credentials from existing Secrets.
+publicURL: https://knock.example.com
+allowAnonymous: false
+tokenSecret:
+  existingSecret: knock-relay-token
+auth:
+  github:
+    existingSecret: knock-relay-github
+    org: example-org
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+  hosts:
+    - host: knock.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: knock-relay-tls
+      hosts: [knock.example.com]
+serviceMonitor:
+  enabled: true
+podDisruptionBudget:
+  enabled: true

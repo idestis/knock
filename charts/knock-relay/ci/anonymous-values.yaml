@@ -1,0 +1,3 @@
+# Anonymous dev relay: no providers, generated token secret, no ingress.
+relayName: knock-dev
+allowAnonymous: true
