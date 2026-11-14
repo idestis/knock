@@ -103,12 +103,16 @@ Then `knock open` to host, or `knock CODE` to knock.
 | Command | What it does |
 |---|---|
 | `knock open [--tmux] [--view-only]` | Open your door in this terminal and wait for a knock |
-| `knock BVJY 4821 KQ` | Knock. The code is optional for people in your list |
-| `knock recent` | Your list, with presence and whether the code still works |
+| `knock close` | Close your door wherever it's open, in the app or another terminal |
+| `knock copy` | Copy your code to the clipboard without printing it |
 | `knock new-code` | Replace your code. Old codes stop working at once |
+| `knock BVJY 4821 KQ` | Knock with someone's code |
+| `knock BVJY` | Knock on someone in your list, no code needed |
+| `knock recent`, `knock recent rm <door>` | Your list, with presence and whether the code still works |
 | `knock login [google\|github]`, `logout`, `whoami` | Optional sign-in, kept in the Keychain |
 | `knock sessions ls`, `knock sessions play N` | List and replay recordings (asciicast) |
-| `knock config` | Show the effective settings |
+| `knock config`, `config set <key> <value>`, `config unset <key>` | Show or change settings in `~/.knock/config.toml` |
+| `knock update [--check]` | Update knock from GitHub Releases (checksum-verified) |
 
 In a session, press `Ctrl-]` then `q` to end it, or `Ctrl-]` then `h` to toggle *Hands off* (host only).
 

@@ -1,7 +1,8 @@
 # Local state shared by Knock.app and the knock CLI
 
 Both clients read and write the same files so a user can switch between them.
-Everything lives in `~/.knock/` (mode `0700`, files `0600`).
+Everything lives in `~/.knock/` (mode `0700`, files `0600`). Both clients honour
+`KNOCK_HOME` to use another folder (handy for testing two identities on one Mac).
 
 | Path | Contents |
 |---|---|
