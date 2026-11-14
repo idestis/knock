@@ -237,7 +237,7 @@
             <h3 class="text-xl font-bold tracking-tight">Knock.app</h3>
             <p class="mt-2 leading-relaxed text-muted">A native Mac app with a menu bar item, notch alerts and notifications. Your code sits in the sidebar, your people in a list with live presence.</p>
             <img src="/img/01-home.webp" width="1400" height="977" loading="lazy" decoding="async"
-                 alt="Knock's Recent list showing Sam Carter online with a Knock button, Priya Nair with a changed code, and Tom Reed in a session."
+                 alt="Knock's home screen: your code BVJY 4821 KQ, and your list with Sam Carter open and a Knock button, Priya Nair with a changed code, and Tom Reed in a session."
                  class="shot mt-6">
           </article>
           <article class="card flex flex-col p-6 sm:p-8">
@@ -249,12 +249,19 @@
                 <span class="ml-2 text-xs font-medium text-term-dim">maya@maya-mbp</span>
               </div>
               <pre><code><span class="prompt">~ % </span>knock open
-Your door is open. Ctrl-C to close it.
+<span class="term-box"><b>Your door is open</b><span class="text-term-dim">  ·  Maya Patel</span>
 
-<span class="text-term-prompt">Knock, knock: Sam Carter on sam-mbp</span>
-Let Sam in? [y/N] y
+<span class="text-term-dim">Your code</span>
+<span class="term-code">BVJY 4821 KQ</span>
 
-<span class="text-term-ok">Sam is in. This shell is now shared.</span>
+<span class="text-term-dim">They knock with:  </span><b class="text-[#3d7bff]">knock BVJY 4821 KQ</b></span>
+<span class="text-term-dim">Waiting for a knock. Ctrl-C closes your door.</span>
+<span class="term-box"><b class="text-[#3d7bff]">Knock, knock.</b>
+<b>Sam Carter</b> wants to come in from <b>sam-mbp</b>.
+<span class="text-term-ok">✓ verified</span><span class="text-term-dim"> with GitHub · sam@carter.dev</span>
+
+Let them in? <b>[y/N]</b> <span class="text-term-dim">52s</span></span>
+<b>Sam Carter</b> is in. This shell is now shared.
 <span class="prompt">~ % </span><span class="inline-block h-4 w-2 translate-y-0.5 bg-term-prompt" aria-hidden="true"></span></code></pre>
             </div>
             <dl class="mt-6 grid gap-x-4 gap-y-2 text-sm sm:grid-cols-[auto_1fr]">

@@ -221,7 +221,7 @@ Start here. Targets macOS 27; uses the system glass materials rather than custom
 
 | Mock | Screen |
 |---|---|
-| `01-home` | Glass sidebar: "Open to knocks" switch, your code with a refresh button on the same line (click the code to copy), your account. Main area: Recent list and a field to enter a code. |
+| `01-home` | Glass sidebar: "Open to knocks" switch, your code with a refresh button on the same line (click the code to copy), your account. Main area: "Online now" list with presence and a field to search or enter a code. |
 | `02-knock-alert` | Knock shown as a glass alert inside the window. |
 | `03-knock-notch` | Knock shown dropping from the notch. |
 | `04-shared-shell` | The terminal, who is in it, a timer, "End session", a typing indicator. |

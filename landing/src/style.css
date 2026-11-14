@@ -131,6 +131,13 @@
   .prompt {
     @apply text-term-prompt select-none;
   }
+  /* Lip Gloss's rounded border box and the code tag, as `knock open` draws them. */
+  .term-box {
+    @apply my-1 inline-block rounded-md border border-[#0043f3] px-4 py-2;
+  }
+  .term-code {
+    @apply bg-[#0043f3] px-2 font-bold text-white;
+  }
 
   /* One-line copyable command. */
   .cmd {
