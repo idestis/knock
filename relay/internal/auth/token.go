@@ -1,5 +1,5 @@
 // Package auth issues and verifies the relay's own tokens and runs the
-// optional Google and GitHub sign-in. Anonymous use needs none of this.
+// Google and GitHub sign-in. Anonymous use needs none of this.
 package auth
 
 import (
@@ -32,26 +32,36 @@ type Claims struct {
 	Subject  string `json:"sub"`
 	Name     string `json:"name"`
 	Email    string `json:"email,omitempty"`
+	Login    string `json:"lgn,omitempty"`
 	Provider string `json:"prv"`
 	Avatar   string `json:"avt,omitempty"`
+	// Policy is the sign-in restriction in force when the user signed in
+	// ("hd:example.com", "org:acme" or ""). Refresh fails when it changes.
+	Policy   string `json:"pol,omitempty"`
 	IssuedAt int64  `json:"iat"`
 	Expires  int64  `json:"exp"`
 	Nonce    string `json:"jti"`
 }
 
 func (c Claims) Identity() protocol.Identity {
-	return protocol.Identity{ID: c.Subject, Name: c.Name, Email: c.Email, Provider: c.Provider, Verified: true, Avatar: c.Avatar}
+	return protocol.Identity{ID: c.Subject, Name: c.Name, Email: c.Email, Login: c.Login, Provider: c.Provider, Verified: true, Avatar: c.Avatar}
 }
 
 type Signer struct{ key []byte }
 
 func NewSigner(secret []byte) *Signer { return &Signer{key: secret} }
 
+// Issue signs a token with no sign-in policy. The OAuth service uses
+// IssueWithPolicy.
 func (s *Signer) Issue(kind string, id protocol.Identity, ttl time.Duration) (string, time.Time) {
+	return s.IssueWithPolicy(kind, id, "", ttl)
+}
+
+func (s *Signer) IssueWithPolicy(kind string, id protocol.Identity, policy string, ttl time.Duration) (string, time.Time) {
 	now := time.Now()
 	exp := now.Add(ttl)
-	c := Claims{Kind: kind, Subject: id.ID, Name: id.Name, Email: id.Email, Provider: id.Provider, Avatar: id.Avatar,
-		IssuedAt: now.Unix(), Expires: exp.Unix(), Nonce: RandomString(9)}
+	c := Claims{Kind: kind, Subject: id.ID, Name: id.Name, Email: id.Email, Login: id.Login, Provider: id.Provider, Avatar: id.Avatar,
+		Policy: policy, IssuedAt: now.Unix(), Expires: exp.Unix(), Nonce: RandomString(9)}
 	body, _ := json.Marshal(c)
 	p := base64.RawURLEncoding.EncodeToString(body)
 	return p + "." + s.sign(p), exp
@@ -70,7 +80,7 @@ func (s *Signer) Verify(token, kind string) (Claims, error) {
 	if err := json.Unmarshal(body, &c); err != nil {
 		return Claims{}, ErrInvalidToken
 	}
-	if c.Kind != kind || time.Now().Unix() >= c.Expires {
+	if c.Kind != kind || c.Subject == "" || time.Now().Unix() >= c.Expires {
 		return Claims{}, ErrInvalidToken
 	}
 	return c, nil

@@ -100,14 +100,23 @@ type Hello struct {
 }
 
 // Identity is who someone is, as the relay sees them. Verified is false for
-// anonymous users, whose name is whatever they typed.
+// anonymous users, whose name is whatever they typed. For signed-in users
+// every field comes from the provider, carried in the relay's own token.
 type Identity struct {
 	ID       string `json:"id"`
 	Name     string `json:"name"`
 	Email    string `json:"email,omitempty"`
-	Provider string `json:"provider"` // google, github, anonymous
+	Login    string `json:"login,omitempty"` // GitHub username; empty for Google and anonymous
+	Provider string `json:"provider"`        // google, github, anonymous
 	Verified bool   `json:"verified"`
 	Avatar   string `json:"avatar,omitempty"`
+}
+
+// AuthProviders is the body of GET /v1/auth/providers. Clients read it
+// before connecting to learn whether they must sign in first.
+type AuthProviders struct {
+	Providers      []string `json:"providers"`
+	SignInRequired bool     `json:"sign_in_required"`
 }
 
 // Welcome answers Hello.
