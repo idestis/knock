@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """tap-update.py <version> <checksums.txt> <tap-dir>
 
-Points the Homebrew tap (github.com/idestis/homebrew-knock) at one release:
+Points the Homebrew tap (github.com/idestis/homebrew-tap) at one release:
 rewrites `version "..."`, the version in each url, and every `sha256 "..."` in Casks/knock.rb and
 Formula/knock.rb. Each sha256 belongs to the nearest `url` at the same
 indentation (above it in the formula, below it in the cask); the url's file

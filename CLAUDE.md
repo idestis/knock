@@ -45,7 +45,7 @@ Check every change against these. If a change bends one, stop and ask.
 
 ## Releases
 
-One version for app, CLI and relay in `mac/Config/Version.xcconfig`, with tags `vX.Y.Z`. `task release` (or `task release -- X.Y.Z`) then `task publish` uploads the DMG, CLI tarballs, `appcast.xml` and checksums to `github.com/idestis/knock` releases, then `task tap:update` rewrites the Homebrew tap (`idestis/homebrew-knock`, checked out at `../homebrew-knock`) from `dist/checksums.txt`. User-facing notes come from `scripts/cliff-release.toml` and `scripts/cliff-sparkle.toml`; `CHANGELOG.md` from `cliff.toml`. Sparkle reads `releases/latest/download/appcast.xml`, and the EdDSA private key stays in the maintainer's login keychain (account `knock`). There is no R2/S3 bucket.
+One version for app, CLI and relay in `mac/Config/Version.xcconfig`, with tags `vX.Y.Z`. `task release` (or `task release -- X.Y.Z`) then `task publish` uploads the DMG, CLI tarballs, `appcast.xml` and checksums to `github.com/idestis/knock` releases, then `task tap:update` rewrites the Homebrew tap (`idestis/homebrew-tap`, checked out at `../homebrew-tap`) from `dist/checksums.txt`. User-facing notes come from `scripts/cliff-release.toml` and `scripts/cliff-sparkle.toml`; `CHANGELOG.md` from `cliff.toml`. Sparkle reads `releases/latest/download/appcast.xml`, and the EdDSA private key stays in the maintainer's login keychain (account `knock`). There is no R2/S3 bucket.
 
 ## Known gaps (v0.1)
 

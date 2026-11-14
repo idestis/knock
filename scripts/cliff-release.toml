@@ -5,7 +5,7 @@
 
 [changelog]
 header = """
-**Install:** `brew install --cask idestis/knock/knock` for the app, `brew install idestis/knock/knock` \
+**Install:** `brew install --cask idestis/tap/knock` for the app, `brew install idestis/tap/knock` \
 for the CLI, or download the DMG or a `knock_*.tar.gz` below. Already have the app? It updates itself.\n
 """
 body = """

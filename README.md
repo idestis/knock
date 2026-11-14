@@ -89,7 +89,7 @@ sequenceDiagram
 **Mac app** (macOS 26+):
 
 ```sh
-brew install --cask idestis/knock/knock
+brew install --cask idestis/tap/knock
 ```
 
 Or download `Knock-x.y.z.dmg` from [Releases](https://github.com/idestis/knock/releases/latest) and drag Knock to Applications. It's signed, notarized, and updates itself from GitHub Releases either way.
@@ -97,10 +97,10 @@ Or download `Knock-x.y.z.dmg` from [Releases](https://github.com/idestis/knock/r
 **CLI** (macOS and Linux, arm64 and amd64):
 
 ```sh
-brew install idestis/knock/knock
+brew install idestis/tap/knock
 ```
 
-Use the full name: homebrew/core has an unrelated `knock` (a port-knocking client). Upgrade with `brew upgrade idestis/knock/knock`. The app doesn't bundle the CLI, so you can install both; they share `~/.knock`.
+Use the full name: homebrew/core has an unrelated `knock` (a port-knocking client). Upgrade with `brew upgrade idestis/tap/knock`. The app doesn't bundle the CLI, so you can install both; they share `~/.knock`.
 
 Without Homebrew, grab the tarball for your platform:
 
@@ -185,7 +185,7 @@ docs/       Local state contract shared by the app and CLI
 design/     Logo and mocks
 ```
 
-**Releasing** (maintainers): `task release:preview`, then `task release` (version from commits, or pin it: `task release -- 0.2.0`), then `task publish`. That builds, signs and notarizes the app and CLI, writes a Sparkle appcast, uploads everything to a GitHub release, and points the [Homebrew tap](https://github.com/idestis/homebrew-knock) (a checkout at `../homebrew-knock`, or `TAP_DIR=`) at the new version. One-time setup: `task signing:setup`, `task notary:setup`, `task sparkle:keys`.
+**Releasing** (maintainers): `task release:preview`, then `task release` (version from commits, or pin it: `task release -- 0.2.0`), then `task publish`. That builds, signs and notarizes the app and CLI, writes a Sparkle appcast, uploads everything to a GitHub release, and points the [Homebrew tap](https://github.com/idestis/homebrew-tap) (a checkout at `../homebrew-tap`, or `TAP_DIR=`) at the new version. One-time setup: `task signing:setup`, `task notary:setup`, `task sparkle:keys`.
 
 Read [DESIGN.md](DESIGN.md) for the full spec and [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
 

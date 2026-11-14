@@ -24,8 +24,8 @@ vars:
     xcodebuild -project Knock.xcodeproj -scheme Knock
     -clonedSourcePackagesDirPath build/spm -derivedDataPath build/dd
     -skipPackagePluginValidation -skipMacroValidation $XCODEBUILD_FLAGS
-  # The Homebrew tap checkout that task tap:update rewrites (github.com/idestis/homebrew-knock).
-  TAP_DIR: '{{.TAP_DIR | default (print .ROOT_DIR "/../homebrew-knock")}}'
+  # The Homebrew tap checkout that task tap:update rewrites (github.com/idestis/homebrew-tap).
+  TAP_DIR: '{{.TAP_DIR | default (print .ROOT_DIR "/../homebrew-tap")}}'
   TAP_PUSH: '{{.TAP_PUSH | default "true"}}'
   LDFLAGS: -s -w -X main.version={{.VERSION}} -X github.com/idestis/knock/cli/internal/app.Version={{.VERSION}}
 
@@ -316,7 +316,7 @@ tasks:
       - sh: gh auth status
         msg: "Run gh auth login first."
       - sh: test -d "{{.TAP_DIR}}/.git"
-        msg: "No tap checkout at {{.TAP_DIR}}. Clone idestis/homebrew-knock there, or pass TAP_DIR=..."
+        msg: "No tap checkout at {{.TAP_DIR}}. Clone idestis/homebrew-tap there, or pass TAP_DIR=..."
     cmds:
       - rm -rf {{.DIST}} && mkdir -p {{.DIST}}
       - task: app:notarize
@@ -337,7 +337,7 @@ tasks:
       - sh: test -f {{.DIST}}/checksums.txt
         msg: "No {{.DIST}}/checksums.txt. Run task publish (or task checksums) first."
       - sh: test -d "{{.TAP_DIR}}/.git"
-        msg: "No tap checkout at {{.TAP_DIR}}. Clone idestis/homebrew-knock there, or pass TAP_DIR=..."
+        msg: "No tap checkout at {{.TAP_DIR}}. Clone idestis/homebrew-tap there, or pass TAP_DIR=..."
     cmds:
       - python3 -I scripts/tap-update.py {{.VERSION}} {{.DIST}}/checksums.txt "{{.TAP_DIR}}"
       - git -C "{{.TAP_DIR}}" add Casks/knock.rb Formula/knock.rb
@@ -345,7 +345,7 @@ tasks:
       - |
         if [ "{{.TAP_PUSH}}" = true ] && git -C "{{.TAP_DIR}}" remote get-url origin >/dev/null 2>&1; then
           git -C "{{.TAP_DIR}}" push -q origin HEAD
-          echo "Tap updated: brew upgrade idestis/knock/knock"
+          echo "Tap updated: brew upgrade idestis/tap/knock"
         else
           echo "Tap committed in {{.TAP_DIR}}, not pushed."
         fi

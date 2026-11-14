@@ -74,7 +74,7 @@ func runUpdate(ctx context.Context, args []string) error {
 		ui.Say("You're on the latest version, %s.", current)
 		return nil
 	case *check && brew:
-		ui.Say("Knock %s is available (you have %s). Run brew upgrade idestis/knock/knock to install it.", latest, current)
+		ui.Say("Knock %s is available (you have %s). Run brew upgrade idestis/tap/knock to install it.", latest, current)
 		return nil
 	case *check:
 		ui.Say("Knock %s is available (you have %s). Run knock update to install it.", latest, current)
@@ -82,7 +82,7 @@ func runUpdate(ctx context.Context, args []string) error {
 	case brew:
 		// Replacing a file inside the Cellar would leave Homebrew out of step with what's installed.
 		ui.Say("Knock %s is available (you have %s).", latest, current)
-		ui.Note("You installed knock with Homebrew, so run brew upgrade idestis/knock/knock.")
+		ui.Note("You installed knock with Homebrew, so run brew upgrade idestis/tap/knock.")
 		return nil
 	}
 
