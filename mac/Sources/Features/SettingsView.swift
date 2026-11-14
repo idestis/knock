@@ -79,6 +79,8 @@ private struct AccountSettings: View {
             } else {
                 Section {
                     TextField("Your name", text: $s.displayName)
+                        .onSubmit(model.displayNameChanged)
+                        .onDisappear(perform: model.displayNameChanged)
                 } footer: {
                     Text("Without an account, people you knock on see this name marked \"not verified\".")
                         .foregroundStyle(.secondary)

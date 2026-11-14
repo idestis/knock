@@ -247,6 +247,13 @@ final class AppModel {
         }
     }
 
+    /// The unverified name only reaches the relay in hello, so reconnect to send the new one.
+    /// Never mid-session: that would end it.
+    func displayNameChanged() {
+        guard session == nil, me?.verified != true, me?.name != settings.displayName else { return }
+        relay.reconnect()
+    }
+
     func signOut() {
         auth.signOut()
         relay.reconnect()

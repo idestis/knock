@@ -179,7 +179,7 @@ struct AccountRow: View {
             HStack(spacing: 12) {
                 Avatar(identity: nil, initials: initials, size: 40)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(model.me?.name ?? model.settings.displayName).font(.headline).lineLimit(1)
+                    Text(shownName).font(.headline).lineLimit(1)
                     Text(subtitle).font(.callout).foregroundStyle(.secondary).lineLimit(1)
                 }
                 Spacer(minLength: 0)
@@ -191,8 +191,14 @@ struct AccountRow: View {
         .menuIndicator(.hidden)
     }
 
+    /// A verified name comes from the relay; otherwise the local setting is the truth, even before a reconnect.
+    private var shownName: String {
+        if let me = model.me, me.verified { return me.name }
+        return model.settings.displayName
+    }
+
     private var initials: String {
-        Identity(id: "", name: model.me?.name ?? model.settings.displayName, provider: "", verified: false).initials
+        Identity(id: "", name: shownName, provider: "", verified: false).initials
     }
 
     private var subtitle: String {
