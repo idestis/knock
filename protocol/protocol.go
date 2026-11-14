@@ -27,6 +27,9 @@ type Envelope struct {
 type Error struct {
 	Code    string `json:"code"`
 	Message string `json:"message,omitempty"`
+	// CodeVersion is set with code_stale: the version the relay holds. The
+	// door's key holder makes a fresh code above it instead of getting stuck.
+	CodeVersion int `json:"code_version,omitempty"`
 }
 
 func (e *Error) Error() string { return fmt.Sprintf("%s: %s", e.Code, e.Message) }
@@ -37,6 +40,7 @@ const (
 	ErrDoorOffline   = "door_offline"
 	ErrDoorBusy      = "door_busy"
 	ErrDoorTaken     = "door_taken"
+	ErrCodeStale     = "code_stale" // door.open/code.set with an older code than the relay holds
 	ErrRateLimited   = "rate_limited"
 	ErrDenied        = "denied"
 	ErrTimeout       = "timeout"
@@ -145,10 +149,17 @@ type DoorOpen struct {
 	DoorKey string     `json:"door_key"`
 	Device  string     `json:"device"`
 	Code    CodeRecord `json:"code"`
+	// Claim is the relay-signed proof of ownership from an earlier
+	// door.opened. It lets the key holder win the door id back after a
+	// relay restart. Opaque to clients; empty on first open.
+	Claim string `json:"claim,omitempty"`
 }
 
 type DoorOpened struct {
 	DoorID string `json:"door_id"`
+	// Claim binds DoorID to this door key. Clients store it per relay and
+	// send it with every later door.open.
+	Claim string `json:"claim,omitempty"`
 }
 
 type DoorCodeSet struct {
@@ -289,6 +300,12 @@ func Encode(typ, id string, v any) ([]byte, error) {
 }
 
 // EncodeError builds an error Envelope.
+// EncodeCodeStale refuses an older code and says which version the relay holds.
+func EncodeCodeStale(id, msg string, version int) []byte {
+	b, _ := json.Marshal(Envelope{Type: TypeError, ID: id, Error: &Error{Code: ErrCodeStale, Message: msg, CodeVersion: version}})
+	return b
+}
+
 func EncodeError(id, code, msg string) []byte {
 	b, _ := json.Marshal(Envelope{Type: TypeError, ID: id, Error: &Error{Code: code, Message: msg}})
 	return b

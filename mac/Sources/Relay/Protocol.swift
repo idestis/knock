@@ -22,11 +22,14 @@ nonisolated enum Wire {
 nonisolated struct WireError: Codable, Error, Equatable, Sendable {
     var code: String
     var message: String?
+    /// Set with code_stale: the code version the relay holds.
+    var codeVersion: Int?
 
     static let codeMismatch = "code_mismatch"
     static let doorOffline = "door_offline"
     static let doorBusy = "door_busy"
     static let doorTaken = "door_taken"
+    static let codeStale = "code_stale"
     static let rateLimited = "rate_limited"
     static let denied = "denied"
     static let timeout = "timeout"
@@ -55,7 +58,8 @@ nonisolated struct Envelope: Sendable {
             env.data = try JSONSerialization.data(withJSONObject: d, options: [.fragmentsAllowed])
         }
         if let e = obj["error"] as? [String: Any], let code = e["code"] as? String {
-            env.error = WireError(code: code, message: e["message"] as? String)
+            env.error = WireError(code: code, message: e["message"] as? String,
+                                  codeVersion: (e["code_version"] as? NSNumber)?.intValue)
         }
         return env
     }
@@ -164,9 +168,14 @@ nonisolated struct DoorOpen: Codable, Sendable {
     var doorKey: String
     var device: String
     var code: CodeRecord
+    /// Relay-signed proof of ownership from an earlier door.opened.
+    var claim: String?
 }
 
-nonisolated struct DoorOpened: Codable, Sendable { var doorId: String }
+nonisolated struct DoorOpened: Codable, Sendable {
+    var doorId: String
+    var claim: String?
+}
 nonisolated struct DoorCodeSet: Codable, Sendable { var code: CodeRecord }
 nonisolated struct DoorSaltGet: Codable, Sendable { var doorId: String }
 nonisolated struct DoorSalt: Codable, Sendable {
