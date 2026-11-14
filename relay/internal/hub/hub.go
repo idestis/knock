@@ -54,6 +54,9 @@ type Config struct {
 	// Heartbeat is how often open doors refresh their store TTL. Zero
 	// means a minute.
 	Heartbeat time.Duration
+	// ClaimMaxAge is how long a door claim stays good after the relay
+	// issued it. Every door.open issues a fresh one. Zero means 90 days.
+	ClaimMaxAge time.Duration
 }
 
 // Limits. Wrong codes are counted per knocker and per door (section 5 of
@@ -181,7 +184,7 @@ func New(cfg Config) *Hub {
 		claimKey = cfg.Signer.Derive("door-claim")
 	}
 	h := &Hub{
-		cfg: cfg, saltSecret: secret, store: cfg.Store, claims: claims{key: claimKey},
+		cfg: cfg, saltSecret: secret, store: cfg.Store, claims: claims{key: claimKey, maxAge: cfg.ClaimMaxAge},
 		doors: map[string]*door{}, knocks: map[string]*knock{}, clients: map[*client]struct{}{}, dirty: map[string]struct{}{},
 		doorFails:    ratelimit.New(5, 10*time.Minute),
 		knockerFails: ratelimit.New(10, 10*time.Minute),

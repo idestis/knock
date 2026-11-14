@@ -31,6 +31,8 @@ empty Recent list and no sign-in there.
   (rename) into the current relay's folder and adds `relay`. The legacy Keychain
   account `session` moves to the current relay's account the same way. Whichever
   client runs first does the move; the other then finds nothing to migrate.
+  If the current relay already has its own file or sign-in, the legacy one is
+  deleted instead, so it can never move into another relay's folder later.
 
 ## Stale codes
 
@@ -79,6 +81,8 @@ the entry.
 - Claim: an opaque string the relay returns in `door.opened`. Clients store it in
   `door.json` and send it with every `door.open`, so the key holder can take the
   door id back after a relay restart even if someone else opened it first.
+  Every `door.opened` brings a fresh claim; save it over the old one. A claim
+  is good for 90 days after the relay issued it.
 - Code: 4 digits + 2 letters (no I/O), shown as `4821 KQ`.
 - The code people share is door + code, shown and copied as `BVJY 1696 ME`.
   Parsers drop a leading `knock`, strip spaces, dashes and `·`, then take the last 6 characters

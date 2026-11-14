@@ -125,7 +125,7 @@ func TestClaimTakesBackSquattedDoor(t *testing.T) {
 	// claim with the host's key: all refused.
 	forged := claim[:len(claim)-4] + "AAAA"
 	otherDoor := mustOpen(t, dial(t, url, "Maya2"), "maya31", doorKey, "", rec)
-	for name, c := range map[string]string{"none": "", "forged": forged, "other door": otherDoor, "other key": squatClaim, "garbage": "c1.1.x"} {
+	for name, c := range map[string]string{"none": "", "forged": forged, "other door": otherDoor, "other key": squatClaim, "garbage": "c2.1.2.x", "old format": "c1.1.x"} {
 		if _, err := open(host, "maya30", doorKey, c, rec); errCode(err) != protocol.ErrDoorTaken {
 			t.Fatalf("%s claim: want door_taken, got %v", name, err)
 		}
@@ -133,7 +133,7 @@ func TestClaimTakesBackSquattedDoor(t *testing.T) {
 
 	// The real claim wins.
 	newClaim := mustOpen(t, host, "maya30", doorKey, claim, rec)
-	if !strings.HasPrefix(newClaim, "c1.") {
+	if !strings.HasPrefix(newClaim, "c2.") {
 		t.Fatalf("claim format %q", newClaim)
 	}
 	if r := reason(t, next(t, squatter, protocol.TypeDoorClose)); r != "door_reclaimed" {
