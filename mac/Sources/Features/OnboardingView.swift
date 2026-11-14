@@ -1,7 +1,7 @@
 import SwiftUI
 import UserNotifications
 
-/// First-run wizard: welcome, your name, optional sign-in, notifications, your code.
+/// First-run wizard: welcome, your name, optional sign-in, notifications, Full Disk Access, your code.
 struct OnboardingView: View {
     @Environment(AppModel.self) private var model
     @State private var step = 0
@@ -10,8 +10,11 @@ struct OnboardingView: View {
     @State private var showRelay = false
     @State private var notifications: UNAuthorizationStatus = .notDetermined
     @State private var openNow = true
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private let steps = 5
+    private let steps = 6
+
+    init(step: Int = 0) { _step = State(initialValue: step) }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -23,7 +26,7 @@ struct OnboardingView: View {
                         .frame(width: i == step ? 22 : 8, height: 8)
                 }
             }
-            .animation(.snappy, value: step)
+            .animation(reduceMotion ? nil : .snappy, value: step)
 
             Spacer(minLength: 20)
             Group {
@@ -32,14 +35,15 @@ struct OnboardingView: View {
                 case 1: about
                 case 2: signIn
                 case 3: notify
+                case 4: diskAccess
                 default: ready
                 }
             }
             .frame(maxWidth: 520)
             .padding(36)
             .glassEffect(.regular.tint(Color.white.opacity(0.35)), in: .rect(cornerRadius: 30))
-            .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity),
-                                    removal: .move(edge: .leading).combined(with: .opacity)))
+            .transition(reduceMotion ? .opacity : .asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity),
+                                                         removal: .move(edge: .leading).combined(with: .opacity)))
             .id(step)
             Spacer(minLength: 20)
         }
@@ -201,6 +205,43 @@ struct OnboardingView: View {
         }
     }
 
+    private var diskAccess: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Title("Let the shell reach your files",
+                  "The shared shell runs inside Knock, so macOS asks about Knock. Without Full Disk Access, commands like ls ~/Documents fail, and macOS can stop you mid-session to ask.")
+            HStack(spacing: 14) {
+                Image(systemName: model.fullDiskAccess ? "externaldrive.fill.badge.checkmark" : "externaldrive.fill")
+                    .font(.title)
+                    .foregroundStyle(Color.accentColor)
+                VStack(alignment: .leading) {
+                    Text("Full Disk Access").font(.headline)
+                    Text(model.fullDiskAccess ? "On. The shell can reach Documents, Desktop, Downloads, iCloud Drive and Mail."
+                                              : "Off. Turn on Knock in the list, then come back here.")
+                        .foregroundStyle(.secondary).font(.callout)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer()
+                if !model.fullDiskAccess {
+                    Button("Open Settings") { NSWorkspace.shared.open(FullDiskAccess.settingsURL) }
+                        .buttonStyle(.glass)
+                }
+            }
+            Text(model.fullDiskAccess
+                 ? "Anyone you let in can reach these files too, just as you can."
+                 : "macOS may ask you to quit and reopen Knock. Shells already running won't see the change. You can turn it on later in Settings > Security.")
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack {
+                back
+                Spacer()
+                if model.fullDiskAccess { primary("Continue") } else {
+                    Button("Not now") { next() }.buttonStyle(.glass).controlSize(.large)
+                }
+            }
+        }
+        .onAppear(perform: model.refreshFullDiskAccess)
+    }
+
     private var ready: some View {
         VStack(spacing: 16) {
             Text("You're ready").font(.system(size: 28, weight: .bold))
@@ -251,10 +292,10 @@ struct OnboardingView: View {
         }
     }
 
-    private func next() { withAnimation(.smooth) { step = min(step + 1, steps - 1) } }
+    private func next() { withAnimation(reduceMotion ? nil : .smooth) { step = min(step + 1, steps - 1) } }
 
     private var back: some View {
-        Button("Back") { withAnimation(.smooth) { step = max(step - 1, 0) } }
+        Button("Back") { withAnimation(reduceMotion ? nil : .smooth) { step = max(step - 1, 0) } }
             .buttonStyle(.borderless)
             .opacity(step == 0 ? 0 : 1)
     }

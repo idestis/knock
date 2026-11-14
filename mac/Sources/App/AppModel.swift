@@ -134,6 +134,10 @@ final class AppModel {
     // Session
     var session: ActiveSession?
 
+    /// Whether macOS lets the shared shell into Documents, Desktop, iCloud and the rest.
+    /// Rechecked whenever Knock comes back to the front, so it follows System Settings.
+    var fullDiskAccess = FullDiskAccess().isGranted
+
     var openWindow: OpenWindowAction?
     let notifier = Notifier()
     let notch = NotchPanelController()
@@ -151,6 +155,9 @@ final class AppModel {
         Recorder.prune(root: settings.sessionsDirectory, days: settings.retentionDays)
         isOpen = settings.onboarded && settings.openOnLaunch
         notifier.setUp(model: self)
+        NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { _ in
+            MainActor.assumeIsolated { AppModel.shared.refreshFullDiskAccess() }
+        }
 
         relay.onState = { [weak self] s in self?.connectionChanged(s) }
         relay.onWelcome = { [weak self] w in self?.welcomed(w) }
@@ -176,6 +183,11 @@ final class AppModel {
             doorReady = true
             connectRelay()
         }
+    }
+
+    func refreshFullDiskAccess() {
+        let granted = FullDiskAccess().isGranted
+        if granted != fullDiskAccess { fullDiskAccess = granted }
     }
 
     func connectRelay() {
@@ -424,6 +436,15 @@ final class AppModel {
         }
     }
 
+    /// "Only signed-in guests": answer no for the host, without a prompt or a sound.
+    /// This path can only decline; letting someone in always takes the host's click.
+    private func turnAway(_ k: KnockIncoming) {
+        doorNotice = "Turned away \(k.from.name), who isn't signed in. You only take knocks from signed-in guests (Settings > Security)."
+        Task {
+            _ = try? await relay.request(MessageType.knockAnswer, KnockAnswer(knockId: k.knockId, allow: false))
+        }
+    }
+
     private func presentKnock(_ k: KnockIncoming) {
         let mainIsFront = NSApp.isActive && (NSApp.keyWindow?.identifier?.rawValue.contains("main") ?? false)
         if mainIsFront {
@@ -441,6 +462,10 @@ final class AppModel {
         switch e.type {
         case MessageType.knockIncoming:
             guard let k = try? e.decode(KnockIncoming.self), isOpen else { return }
+            if KnockScreen.decide(from: k.from, verifiedOnly: settings.verifiedGuestsOnly) == .declineUnverified {
+                turnAway(k)
+                return
+            }
             incoming.append(k)
             if incoming.count == 1 { presentKnock(k) }
             DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(k.expiresIn)) { [weak self] in
