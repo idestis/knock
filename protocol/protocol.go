@@ -239,6 +239,17 @@ type SessionStart struct {
 	GuestInput  bool     `json:"guest_input"`
 }
 
+// Session end reasons. Hosts may send EndShellExited, EndDoorClosed or
+// EndHostQuit in session.end; the relay sets the rest.
+const (
+	EndHostEnded   = "host_ended"
+	EndGuestLeft   = "guest_left"
+	EndShellExited = "shell_exited"
+	EndDoorClosed  = "door_closed"
+	EndHostQuit    = "host_quit"
+	EndHostLeft    = "host_left" // the host's connection dropped
+)
+
 type SessionEnd struct {
 	SessionID string `json:"session_id,omitempty"`
 	Reason    string `json:"reason,omitempty"`

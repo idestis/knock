@@ -178,7 +178,11 @@ func (h *Host) Run(ctx context.Context) Result {
 	hostEnds := func(reason string) Result {
 		rctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 		defer cancel()
-		_, _ = h.Conn.Request(rctx, protocol.TypeSessionEnd, protocol.SessionEnd{SessionID: h.Start.SessionID, Reason: "host_ended"})
+		why := protocol.EndHostEnded
+		if reason == ReasonShellExited {
+			why = protocol.EndShellExited
+		}
+		_, _ = h.Conn.Request(rctx, protocol.TypeSessionEnd, protocol.SessionEnd{SessionID: h.Start.SessionID, Reason: why})
 		return end(reason)
 	}
 

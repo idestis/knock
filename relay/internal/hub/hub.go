@@ -397,11 +397,8 @@ func (h *Hub) handle(c *client, env protocol.Envelope) {
 		c.send(protocol.TypeOK, env.ID, nil)
 	case protocol.TypeSessionEnd:
 		if c.session != nil {
-			reason := "guest_left"
-			if c.session.host == c {
-				reason = "host_ended"
-			}
-			h.endSession(c.session, reason)
+			in, _ := decode[protocol.SessionEnd](env)
+			h.endSession(c.session, endReason(c.session.host == c, in.Reason))
 		}
 		c.send(protocol.TypeOK, env.ID, nil)
 	case protocol.TypeSessionResize:
@@ -749,6 +746,20 @@ func (h *Hub) endSession(s *session, reason string) {
 	s.guest.send(protocol.TypeSessionEnd, "", end)
 	h.notifyPresence(s.door)
 	slog.Info("session end", "session", s.id, "door", s.door.id, "reason", reason, "duration", time.Since(s.started).Round(time.Second).String())
+}
+
+// endReason picks the reason both sides see. A host may say why it ended
+// (its shell exited, it closed the door, it quit); anything else is host_ended.
+// A guest always just left.
+func endReason(isHost bool, asked string) string {
+	if !isHost {
+		return protocol.EndGuestLeft
+	}
+	switch asked {
+	case protocol.EndShellExited, protocol.EndDoorClosed, protocol.EndHostQuit:
+		return asked
+	}
+	return protocol.EndHostEnded
 }
 
 func (h *Hub) disconnect(c *client) {

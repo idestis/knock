@@ -11,8 +11,16 @@ func Explain(reason, role string, peer protocol.Identity) string {
 			return "You left."
 		}
 		return "You ended the session."
-	case ReasonShellExited:
-		return "The shell exited, so the session ended."
+	case ReasonShellExited: // same string locally and from the relay
+		if role == protocol.RoleHost {
+			return "The shell exited, so the session ended."
+		}
+		return p + "'s shell exited, so the session ended."
+	case protocol.EndHostQuit:
+		if role == protocol.RoleHost {
+			return "You quit Knock, so the session ended."
+		}
+		return p + " quit Knock, so the session ended."
 	case ReasonRelayLost:
 		return "Lost the connection to the relay, so the session ended."
 	case "host_ended":
@@ -33,6 +41,9 @@ func Explain(reason, role string, peer protocol.Identity) string {
 		}
 		return p + " changed their code, so the session ended. Ask them for the new one to knock again."
 	case "door_closed":
+		if role == protocol.RoleHost {
+			return "You closed your door, so the session ended."
+		}
 		return p + " closed their door."
 	case "opened_elsewhere":
 		if role == protocol.RoleHost {

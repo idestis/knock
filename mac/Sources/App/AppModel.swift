@@ -224,7 +224,7 @@ final class AppModel {
     }
 
     func shutdown() {
-        if let session { endSession(session) }
+        if let session { endSession(session, reason: "host_quit") }
         if isOpen { relay.send(MessageType.doorClose) }
         relay.stop()
     }
@@ -288,7 +288,7 @@ final class AppModel {
     private func closeDoor() {
         incoming.removeAll()
         notch.dismiss()
-        if let session, session.isHost { endSession(session) }
+        if let session, session.isHost { endSession(session, reason: "door_closed") }
         guard connected else { return }
         relay.send(MessageType.doorClose)
     }
@@ -511,7 +511,7 @@ final class AppModel {
                 onResize: { [weak self] c, r in self?.relay.send(MessageType.sessionResize, SessionResize(cols: c, rows: r)) },
                 onExit: { [weak self, weak active] in
                     guard let self, let active else { return }
-                    self.endSession(active)
+                    self.endSession(active, reason: "shell_exited")
                 })
             active.host = host
             active.recorder = Recorder(mode: settings.recording(host: true), root: settings.sessionsDirectory, peer: s.peer,
@@ -562,9 +562,11 @@ final class AppModel {
         relay.send(MessageType.sessionMode, SessionMode(guestInput: allowed))
     }
 
-    func endSession(_ s: ActiveSession) {
-        relay.send(MessageType.sessionEnd)
-        finishSession(s, reason: s.isHost ? "host_ended" : "guest_left")
+    /// A host can say why (shell_exited, door_closed, host_quit) so the guest isn't told "ended" for everything.
+    func endSession(_ s: ActiveSession, reason: String? = nil) {
+        let why = s.isHost ? (reason ?? "host_ended") : "guest_left"
+        relay.send(MessageType.sessionEnd, SessionEnd(sessionId: s.id, reason: why))
+        finishSession(s, reason: why)
     }
 
     private func finishSession(_ s: ActiveSession, reason: String) {
@@ -582,9 +584,11 @@ enum SessionEndText {
         switch reason {
         case "host_ended": isHost ? "You ended the session." : "\(peer.firstName) ended the session."
         case "guest_left": isHost ? "\(peer.firstName) left." : "You left \(peer.firstName)'s shell."
-        case "host_left": "\(peer.firstName) closed Knock."
-        case "code_changed": "The code changed, so the session ended."
-        case "door_closed": "The door closed."
+        case "shell_exited": isHost ? "The shell exited, so the session ended." : "\(peer.firstName)'s shell exited, so the session ended."
+        case "host_quit": isHost ? "You quit Knock, so the session ended." : "\(peer.firstName) quit Knock, so the session ended."
+        case "host_left": "\(peer.firstName)'s connection dropped, so the session ended."
+        case "code_changed": isHost ? "Your code changed, so the session ended." : "\(peer.firstName) changed their code, so the session ended."
+        case "door_closed": isHost ? "You closed your door, so the session ended." : "\(peer.firstName) closed their door."
         case "relay_lost": "Relay restarted, knock again."
         default: "The session ended."
         }
