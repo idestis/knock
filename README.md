@@ -87,6 +87,12 @@ sequenceDiagram
 
 ## Install
 
+Homebrew loads third-party taps only once you trust them, so first, once:
+
+```sh
+brew tap idestis/tap && brew trust idestis/tap
+```
+
 **Mac app** (macOS 26+):
 
 ```sh
