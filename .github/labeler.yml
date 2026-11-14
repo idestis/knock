@@ -1,0 +1,19 @@
+# Area labels for PRs, by changed paths (actions/labeler v5+ format).
+protocol:
+  - changed-files:
+      - any-glob-to-any-file: ["protocol/**", "mac/Sources/Relay/Protocol.swift", "mac/Tests/GoVector.swift"]
+relay:
+  - changed-files:
+      - any-glob-to-any-file: ["relay/**", "deploy/**"]
+cli:
+  - changed-files:
+      - any-glob-to-any-file: ["cli/**", "client/**"]
+mac:
+  - changed-files:
+      - any-glob-to-any-file: ["mac/**"]
+ci:
+  - changed-files:
+      - any-glob-to-any-file: [".github/workflows/**", ".github/*.yml", "Taskfile.yml", "scripts/**", "cliff.toml"]
+docs:
+  - changed-files:
+      - any-glob-to-any-file: ["**/*.md", "LICENSE", "design/**"]

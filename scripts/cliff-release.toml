@@ -1,0 +1,47 @@
+# git-cliff config for the GitHub release notes, written for people installing Knock.
+# Only changes a user can notice (feat, fix, perf, security), one line each, no scopes or hashes.
+# CHANGELOG.md (../cliff.toml) keeps the full developer history.
+# A "Release-note:" footer replaces the line; "Release-note: none" hides it.
+
+[changelog]
+header = """
+**Install:** `brew install --cask idestis/knock/knock` for the app, `brew install idestis/knock/knock` \
+for the CLI, or download the DMG or a `knock_*.tar.gz` below. Already have the app? It updates itself.\n
+"""
+body = """
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group | striptags | trim }}
+{% for commit in commits %}\
+{% set note = commit.footers | filter(attribute="token", value="Release-note") | first %}\
+{% if not note or note.value | lower != "none" %}
+- {% if note %}{{ note.value | upper_first }}{% else %}{{ commit.message | upper_first }}{% endif %}\
+{% endif %}\
+{% endfor %}
+{% endfor %}
+"""
+footer = """
+
+Requires macOS 26 or later for the app. The CLI runs on macOS and Linux (arm64 and amd64). \
+Verify downloads against `checksums.txt`. [Full changelog](https://github.com/idestis/knock/blob/main/CHANGELOG.md)
+"""
+trim = true
+
+[git]
+conventional_commits = true
+filter_unconventional = true
+split_commits = false
+protect_breaking_commits = false
+filter_commits = true
+tag_pattern = "^v[0-9].*"
+sort_commits = "oldest"
+commit_preprocessors = [
+  # Squash merges end in "(#12)"; users don't need PR numbers.
+  { pattern = '\s*\(#[0-9]+\)', replace = "" },
+]
+commit_parsers = [
+  { message = "^[a-z]+\\((ci|docs|release|deps|deploy)\\)", skip = true },
+  { message = "^feat", group = "<!-- 0 -->New" },
+  { message = "^fix", group = "<!-- 1 -->Fixed" },
+  { message = "^perf", group = "<!-- 2 -->Faster" },
+  { message = "^security", group = "<!-- 3 -->Security" },
+]

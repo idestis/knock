@@ -1,9 +1,15 @@
 name: ci
 
+# Runs on every PR and push to main. `go` and `mac` are meant as required checks, so they always
+# report: a mac job skipped because nothing under mac/ (or the shared code it pins) changed counts as passed.
 on:
   push:
     branches: [main]
   pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -20,3 +26,40 @@ jobs:
         run: test -z "$(gofmt -l protocol relay client cli tools)" || (gofmt -l protocol relay client cli tools; exit 1)
       - run: go vet ./...
       - run: go test -race -count=1 ./...
+
+  changes:
+    runs-on: ubuntu-24.04
+    outputs:
+      mac: ${{ steps.diff.outputs.mac }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - id: diff
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ -z "$BASE" ] || ! git cat-file -e "$BASE" 2>/dev/null || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            files=$(git ls-files)
+          else
+            files=$(git diff --name-only "$BASE" HEAD)
+          fi
+          grep -qE '^(mac/|protocol/|Taskfile.yml|\.github/workflows/ci.yml)' <<<"$files" && echo "mac=true" >> "$GITHUB_OUTPUT" || echo "mac=false" >> "$GITHUB_OUTPUT"
+
+  mac:
+    needs: changes
+    if: needs.changes.outputs.mac == 'true'
+    # Knock targets macOS 26 and Swift 6; if the macos-26 image is unavailable there is no fallback.
+    runs-on: macos-26
+    timeout-minutes: 30
+    env:
+      # Appended to every xcodebuild call by the Taskfile: ad-hoc signing, no team or certificates.
+      XCODEBUILD_FLAGS: CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install tools
+        run: brew install go-task xcodegen
+      - name: Xcode version
+        run: xcodebuild -version
+      - name: Test
+        run: task app:test
