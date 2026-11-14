@@ -133,7 +133,7 @@ tasks:
   app:gen:
     desc: Generate Knock.xcodeproj from mac/project.yml
     dir: mac
-    sources: [project.yml]
+    sources: [project.yml, "Sources/**/*.swift", "Tests/**/*.swift", "Resources/**"]
     cmds:
       - xcodegen generate --quiet
 
