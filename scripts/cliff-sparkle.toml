@@ -1,0 +1,40 @@
+# git-cliff config for the Sparkle appcast <description>, which Sparkle renders as HTML.
+# Same commits as the GitHub release notes (cliff-release.toml), no version header:
+# the appcast item already carries <sparkle:shortVersionString>.
+
+[changelog]
+header = ""
+body = """
+{% for group, commits in commits | group_by(attribute="group") -%}
+<h3>{{ group | striptags | trim }}</h3>
+<ul>
+{% for commit in commits -%}
+{% set note = commit.footers | filter(attribute="token", value="Release-note") | first -%}
+{% if not note or note.value | lower != "none" -%}
+<li>{% if note %}{{ note.value | upper_first | escape }}{% else %}{{ commit.message | upper_first | escape }}{% endif %}</li>
+{% endif -%}
+{% endfor -%}
+</ul>
+{% endfor %}
+"""
+footer = ""
+trim = true
+
+[git]
+conventional_commits = true
+filter_unconventional = true
+split_commits = false
+protect_breaking_commits = false
+filter_commits = true
+tag_pattern = "^v[0-9].*"
+sort_commits = "oldest"
+commit_preprocessors = [
+  { pattern = '\s*\(#[0-9]+\)', replace = "" },
+]
+commit_parsers = [
+  { message = "^[a-z]+\\((ci|docs|release|deps|deploy)\\)", skip = true },
+  { message = "^feat", group = "<!-- 0 -->New" },
+  { message = "^fix", group = "<!-- 1 -->Fixed" },
+  { message = "^perf", group = "<!-- 2 -->Faster" },
+  { message = "^security", group = "<!-- 3 -->Security" },
+]
