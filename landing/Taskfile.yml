@@ -1,0 +1,36 @@
+# Landing page tasks, included from the root Taskfile as landing:*.
+# The site deploys to https://idestis.github.io/knock/ from .github/workflows/pages.yml.
+version: "3"
+
+tasks:
+  install:
+    desc: Install the landing page's pinned dependencies
+    sources: [package.json, package-lock.json]
+    cmds:
+      - npm ci
+
+  dev:
+    desc: Serve the landing page with hot reload at http://localhost:5173/knock/
+    deps: [install]
+    cmds:
+      - npx vite
+
+  build:
+    desc: Type-check and build the landing page into landing/dist
+    deps: [install]
+    cmds:
+      - npm run build
+
+  preview:
+    desc: Serve the built landing page at http://localhost:4173/knock/
+    deps: [build]
+    cmds:
+      - npx vite preview
+
+  check:
+    desc: Build, then make sure the page loads nothing from other hosts
+    deps: [build]
+    cmds:
+      - "! grep -nE '<(script|img|iframe)[^>]+src=\"https?://' dist/index.html"
+      - "! grep -nE '<link[^>]+rel=\"(stylesheet|icon|preload|modulepreload)\"[^>]+href=\"https?://' dist/index.html"
+      - "! grep -nE 'url\\(\"?https?:|@import' dist/assets/*.css"

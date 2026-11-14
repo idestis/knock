@@ -6,7 +6,8 @@
 
 <p align="center">
   Share one shell on your Mac with the person helping you.<br>
-  They knock, you let them in, you both type in the same terminal.
+  They knock, you let them in, you both type in the same terminal.<br>
+  <a href="https://idestis.github.io/knock/">idestis.github.io/knock</a>
 </p>
 
 <p align="center">
@@ -158,6 +159,7 @@ task test         # Go (race) + Swift tests
 task dev          # local relay + Debug app
 task relay:run    # knockd on 127.0.0.1:8787
 task cli:build    # bin/knock
+task landing:dev  # the website (Vite + Tailwind), deployed to GitHub Pages from main
 ```
 
 ```
@@ -169,6 +171,7 @@ mac/        Knock.app (SwiftUI, SwiftTerm, Sparkle), generated with XcodeGen
 deploy/     Kubernetes manifest
 docs/       Local state contract shared by the app and CLI
 design/     Logo and mocks
+landing/    The website at idestis.github.io/knock
 ```
 
 **Releasing** (maintainers): `task release -- 0.2.0` then `task publish`. That builds, signs and notarizes the app and CLI, writes a Sparkle appcast, and uploads everything to a GitHub release. One-time setup: `task signing:setup`, `task notary:setup`, `task sparkle:keys`.

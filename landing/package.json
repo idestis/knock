@@ -1,0 +1,21 @@
+{
+  "name": "knock-landing",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "The Knock landing page, deployed to GitHub Pages",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "4.3.5",
+    "tailwindcss": "4.3.5",
+    "typescript": "5.9.3",
+    "vite": "8.3.8"
+  },
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  }
+}

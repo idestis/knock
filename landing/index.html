@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Knock: share one shell on your Mac with the person helping you</title>
+  <meta name="description" content="Knock lets someone you trust type in one shell on your Mac. They knock with your code, you let them in, you see every key. Free, open source, with a relay you run yourself.">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#fbfcfe" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0c0f16" media="(prefers-color-scheme: dark)">
+  <link rel="canonical" href="https://idestis.github.io/knock/">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="sitemap" type="application/xml" href="/sitemap.xml">
+  <meta name="robots" content="index, follow">
+
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Knock">
+  <meta property="og:title" content="Knock: they knock, you let them in">
+  <meta property="og:description" content="Share one shell on your Mac with the person helping you. You approve every visit and see every key. Free and open source.">
+  <meta property="og:url" content="https://idestis.github.io/knock/">
+  <meta property="og:image" content="https://idestis.github.io/knock/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="The Knock mark above the line: They knock. You let them in.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Knock: they knock, you let them in">
+  <meta name="twitter:description" content="Share one shell on your Mac with the person helping you. You approve every visit and see every key.">
+  <meta name="twitter:image" content="https://idestis.github.io/knock/og.png">
+  <meta name="twitter:image:alt" content="The Knock mark above the line: They knock. You let them in.">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Knock",
+    "description": "Share one shell on your Mac with the person helping you. They knock with your code, you let them in.",
+    "url": "https://idestis.github.io/knock/",
+    "downloadUrl": "https://github.com/idestis/knock/releases/latest",
+    "image": "https://idestis.github.io/knock/og.png",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "macOS 26 or later",
+    "isAccessibleForFree": true,
+    "license": "https://opensource.org/licenses/MIT",
+    "codeRepository": "https://github.com/idestis/knock",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+  }
+  </script>
+  <script type="module" src="/src/main.ts"></script>
+</head>
+<body>
+  <a href="#main" class="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-full focus:bg-fill focus:px-4 focus:py-2 focus:text-white">Skip to content</a>
+
+  <header class="sticky top-0 z-40 border-b border-line/70 bg-page/80 backdrop-blur-md supports-[backdrop-filter]:bg-page/70">
+    <div class="wrap flex h-16 items-center justify-between gap-4">
+      <a href="./" class="flex items-center gap-2.5 font-display text-lg font-bold tracking-tight" aria-label="Knock home">
+        <img src="/favicon.svg" alt="" width="28" height="24" class="h-6 w-auto">
+        <span>Knock</span>
+      </a>
+      <nav aria-label="Main" class="flex items-center gap-1 text-sm font-medium text-muted sm:gap-2">
+        <a href="#how" class="hidden rounded-full px-3 py-2 hover:text-ink sm:inline-block">How it works</a>
+        <a href="#trust" class="hidden rounded-full px-3 py-2 hover:text-ink sm:inline-block">Trust</a>
+        <a href="#relay" class="hidden rounded-full px-3 py-2 hover:text-ink md:inline-block">Self-host</a>
+        <a href="https://github.com/idestis/knock" class="inline-flex items-center gap-2 rounded-full px-3 py-2 hover:text-ink">
+          <svg class="size-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.05-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.83 1.19 3.09 0 4.42-2.69 5.39-5.25 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg>
+          <span>GitHub</span>
+        </a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <!-- Hero -->
+    <section class="relative overflow-hidden" aria-labelledby="hero-title">
+      <div aria-hidden="true" class="pointer-events-none absolute inset-x-0 -top-40 -z-10 h-[36rem] bg-[radial-gradient(60%_60%_at_50%_0%,color-mix(in_srgb,var(--color-accent)_14%,transparent),transparent)]"></div>
+      <div class="wrap pt-14 pb-16 sm:pt-20 lg:grid lg:grid-cols-12 lg:items-center lg:gap-12 lg:pt-24 lg:pb-24">
+        <div class="lg:col-span-6">
+          <img src="/favicon.svg" alt="" width="64" height="56" class="mb-8 h-12 w-auto sm:h-14">
+          <p class="eyebrow">Knock, knock. Who's there?</p>
+          <h1 id="hero-title" class="mt-3 font-display text-4xl leading-[1.08] font-bold tracking-tight text-balance sm:text-5xl lg:text-6xl">
+            Share one shell on your Mac with the person helping you.
+          </h1>
+          <p class="mt-5 max-w-xl text-lg leading-relaxed text-muted text-pretty sm:text-xl">
+            They knock, you let them in. You both type in the same terminal, you see every key, and you can end it any time.
+          </p>
+
+          <div class="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+            <a href="https://github.com/idestis/knock/releases/latest" class="btn btn-primary shadow-(--shadow-lift)">
+              <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0-5-5m5 5 5-5M5 21h14"/></svg>
+              Download for Mac
+            </a>
+            <a href="#how" class="btn btn-ghost">See how it works</a>
+          </div>
+          <p class="mt-3 text-sm text-muted">Free and open source. macOS 26 or later. The CLI also runs on Linux.</p>
+
+          <div class="mt-8 max-w-xl space-y-2.5">
+            <p class="text-sm font-semibold">Or install with Homebrew</p>
+            <div class="cmd">
+              <span class="prompt hidden sm:inline" aria-hidden="true">$</span>
+              <code>brew install --cask idestis/tap/knock</code>
+              <button type="button" class="copy" data-copy="brew install --cask idestis/tap/knock" aria-label="Copy the app install command">
+                <svg class="i-copy size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg>
+                <svg class="i-check size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+              </button>
+            </div>
+            <div class="cmd">
+              <span class="prompt hidden sm:inline" aria-hidden="true">$</span>
+              <code>brew install idestis/tap/knock</code>
+              <button type="button" class="copy" data-copy="brew install idestis/tap/knock" aria-label="Copy the CLI install command">
+                <svg class="i-copy size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg>
+                <svg class="i-check size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+              </button>
+            </div>
+            <p class="text-xs text-muted">The first line is the app, the second is the <code class="font-mono">knock</code> CLI.</p>
+          </div>
+        </div>
+
+        <div class="mt-14 lg:col-span-6 lg:mt-0">
+          <img src="/img/02-knock-alert.webp" width="1400" height="977" fetchpriority="high"
+               alt="The Knock window with a knock alert: Sam Carter wants to come in from sam-mbp. Buttons read Not now and Let Sam in."
+               class="shot shadow-(--shadow-lift)">
+        </div>
+      </div>
+    </section>
+
+    <!-- How it works -->
+    <section id="how" class="scroll-mt-20 border-t border-line bg-surface py-20 sm:py-28" aria-labelledby="how-title">
+      <div class="wrap">
+        <p class="eyebrow">How it works</p>
+        <h2 id="how-title" class="h2 mt-2">Three steps, and you stay in charge of each one.</h2>
+
+        <ol class="mt-12 grid gap-6 md:grid-cols-3">
+          <li class="card flex flex-col p-6 sm:p-7">
+            <span class="flex size-9 items-center justify-center rounded-full bg-accent-soft font-display font-bold text-accent" aria-hidden="true">1</span>
+            <h3 class="mt-5 text-xl font-bold tracking-tight">Open your door</h3>
+            <p class="mt-2 leading-relaxed text-muted">Open Knock and you get one code, like <code class="rounded-md bg-sunken px-1.5 py-0.5 font-mono text-sm font-semibold text-ink">BVJY 4821 KQ</code>. Click it to copy, then send it to the person helping you.</p>
+            <img src="/img/01-home.webp" width="1400" height="977" loading="lazy" decoding="async"
+                 alt="Knock's home screen with Open to knocks switched on and your code, 4821 KQ, under Your code."
+                 class="shot mt-6">
+          </li>
+          <li class="card flex flex-col p-6 sm:p-7">
+            <span class="flex size-9 items-center justify-center rounded-full bg-accent-soft font-display font-bold text-accent" aria-hidden="true">2</span>
+            <h3 class="mt-5 text-xl font-bold tracking-tight">They knock with your code</h3>
+            <p class="mt-2 leading-relaxed text-muted">They paste the code into Knock, or knock from any terminal. A code is only the right to knock. It never lets anyone in by itself.</p>
+            <div class="term mt-6 flex-1">
+              <div class="term-bar" aria-hidden="true">
+                <span class="term-dot bg-[#ff5f57]"></span><span class="term-dot bg-[#febc2e]"></span><span class="term-dot bg-[#28c840]"></span>
+              </div>
+              <pre><code><span class="prompt">sam ~ % </span>knock BVJY 4821 KQ
+<span class="text-term-dim">Knocking on Maya Patel…</span></code></pre>
+            </div>
+          </li>
+          <li class="card flex flex-col p-6 sm:p-7">
+            <span class="flex size-9 items-center justify-center rounded-full bg-accent-soft font-display font-bold text-accent" aria-hidden="true">3</span>
+            <h3 class="mt-5 text-xl font-bold tracking-tight">You let them in</h3>
+            <p class="mt-2 leading-relaxed text-muted">The knock drops from the notch with their name, marked verified if they signed in. Nothing happens until you click <strong class="font-semibold text-ink">Let in</strong>.</p>
+            <img src="/img/03-knock-notch.webp" width="1400" height="754" loading="lazy" decoding="async"
+                 alt="A knock dropping from the MacBook notch: Knock, knock. Sam Carter wants to come in from sam-mbp, with Not now and Let Sam in buttons."
+                 class="shot mt-6">
+          </li>
+        </ol>
+
+        <div class="mt-16 grid gap-10 lg:mt-24 lg:grid-cols-12 lg:items-center lg:gap-12">
+          <div class="lg:col-span-5">
+            <h3 class="font-display text-2xl font-bold tracking-tight sm:text-3xl">Then you share one shell.</h3>
+            <p class="mt-4 text-lg leading-relaxed text-muted text-pretty">It's your login shell, running on your Mac. You both type, you see who's typing, and <strong class="font-semibold text-ink">End session</strong> is always one click away.</p>
+            <p class="mt-4 leading-relaxed text-muted text-pretty">Need them to watch, not type? Turn on <em>Hands off</em> and they're view-only. Next time, they find you in their list and knock without a code, and you still decide.</p>
+          </div>
+          <div class="lg:col-span-7">
+            <img src="/img/04-shared-shell.webp" width="1400" height="894" loading="lazy" decoding="async"
+                 alt="A shared terminal session. A banner reads Sam Carter is in your shell, 04:12, with a red End session button. At the bottom: Sam is typing."
+                 class="shot">
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Trust -->
+    <section id="trust" class="scroll-mt-20 py-20 sm:py-28" aria-labelledby="trust-title">
+      <div class="wrap">
+        <p class="eyebrow">Rules Knock never breaks</p>
+        <h2 id="trust-title" class="h2 mt-2">Your Mac, your call. Every time.</h2>
+        <p class="lede">Letting someone into your shell takes trust. These rules are built in, and no setting turns them off.</p>
+
+        <ul class="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          <li class="card p-6">
+            <svg class="size-7 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 11V6a2 2 0 0 0-4 0v5M14 10V4a2 2 0 0 0-4 0v6M10 10.5V6a2 2 0 0 0-4 0v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg>
+            <h3 class="mt-4 text-lg font-bold tracking-tight">Nothing happens without you</h3>
+            <p class="mt-2 leading-relaxed text-muted">A session starts only when you click <em>Let in</em>. There's no default button, so pressing Return never lets anyone in.</p>
+          </li>
+          <li class="card p-6">
+            <svg class="size-7 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 4h3a2 2 0 0 1 2 2v14M2 20h3M13 20h9M10 12v.01"/><path d="M13 4.56v16.01a.5.5 0 0 1-.6.49L5 19.5V5.6a1 1 0 0 1 .76-.97l6-1.5A1 1 0 0 1 13 4.1Z"/></svg>
+            <h3 class="mt-4 text-lg font-bold tracking-tight">Quit Knock and you're unreachable</h3>
+            <p class="mt-2 leading-relaxed text-muted">No launch agent, no login item, no background daemon. When the app is closed, so is your door.</p>
+          </li>
+          <li class="card p-6">
+            <svg class="size-7 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 15.5-6.2L21 8M21 3v5h-5M21 12a9 9 0 0 1-15.5 6.2L3 16M3 21v-5h5"/></svg>
+            <h3 class="mt-4 text-lg font-bold tracking-tight">A new code cuts everyone off</h3>
+            <p class="mt-2 leading-relaxed text-muted">Make a new code and the live session ends, waiting knocks are dropped, and the old code stops working straight away.</p>
+          </li>
+          <li class="card p-6">
+            <svg class="size-7 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0"/><circle cx="12" cy="12" r="3"/></svg>
+            <h3 class="mt-4 text-lg font-bold tracking-tight">You see every key they press</h3>
+            <p class="mt-2 leading-relaxed text-muted">Even keys the shell doesn't echo, like a typed password. Make them view-only or end the session at any moment.</p>
+          </li>
+          <li class="card p-6">
+            <svg class="size-7 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <h3 class="mt-4 text-lg font-bold tracking-tight">The relay never learns your code</h3>
+            <p class="mt-2 leading-relaxed text-muted">Your Mac sends only a salted PBKDF2 hash. Codes, hashes, tokens and terminal bytes never go in a log.</p>
+          </li>
+          <li class="card p-6">
+            <svg class="size-7 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg>
+            <h3 class="mt-4 text-lg font-bold tracking-tight">Outbound only</h3>
+            <p class="mt-2 leading-relaxed text-muted">Both sides connect out to the relay. No open ports, no SSH keys to hand out, no VPN to set up.</p>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- App and CLI -->
+    <section id="app-and-cli" class="scroll-mt-20 border-y border-line bg-surface py-20 sm:py-28" aria-labelledby="pair-title">
+      <div class="wrap">
+        <p class="eyebrow">App and CLI</p>
+        <h2 id="pair-title" class="h2 mt-2">Click or type. They work together.</h2>
+        <p class="lede">Use Knock.app or <code class="font-mono text-ink">knock</code> in any terminal. Same relay, same codes, and any pairing works: app to CLI, CLI to app, either to itself.</p>
+
+        <div class="mt-12 grid gap-6 lg:grid-cols-2">
+          <article class="card flex flex-col p-6 sm:p-8">
+            <h3 class="text-xl font-bold tracking-tight">Knock.app</h3>
+            <p class="mt-2 leading-relaxed text-muted">A native Mac app with a menu bar item, notch alerts and notifications. Your code sits in the sidebar, your people in a list with live presence.</p>
+            <img src="/img/01-home.webp" width="1400" height="977" loading="lazy" decoding="async"
+                 alt="Knock's Recent list showing Sam Carter online with a Knock button, Priya Nair with a changed code, and Tom Reed in a session."
+                 class="shot mt-6">
+          </article>
+          <article class="card flex flex-col p-6 sm:p-8">
+            <h3 class="text-xl font-bold tracking-tight"><code class="font-mono">knock</code> CLI</h3>
+            <p class="mt-2 leading-relaxed text-muted">For macOS and Linux terminals. Open your door with <code class="font-mono text-ink">knock open</code> and answer with <kbd class="rounded border border-line bg-sunken px-1.5 font-mono text-sm text-ink">y</kbd>. The stream passes straight through, no TUI on top.</p>
+            <div class="term mt-6 flex-1">
+              <div class="term-bar">
+                <span class="term-dot bg-[#ff5f57]" aria-hidden="true"></span><span class="term-dot bg-[#febc2e]" aria-hidden="true"></span><span class="term-dot bg-[#28c840]" aria-hidden="true"></span>
+                <span class="ml-2 text-xs font-medium text-term-dim">maya@maya-mbp</span>
+              </div>
+              <pre><code><span class="prompt">~ % </span>knock open
+Your door is open. Ctrl-C to close it.
+
+<span class="text-term-prompt">Knock, knock: Sam Carter on sam-mbp</span>
+Let Sam in? [y/N] y
+
+<span class="text-term-ok">Sam is in. This shell is now shared.</span>
+<span class="prompt">~ % </span><span class="inline-block h-4 w-2 translate-y-0.5 bg-term-prompt" aria-hidden="true"></span></code></pre>
+            </div>
+            <dl class="mt-6 grid gap-x-4 gap-y-2 text-sm sm:grid-cols-[auto_1fr]">
+              <dt><code class="font-mono font-semibold">knock CODE</code></dt><dd class="text-muted">Knock with someone's code</dd>
+              <dt><code class="font-mono font-semibold">knock recent</code></dt><dd class="text-muted">Your list, with presence</dd>
+              <dt><code class="font-mono font-semibold">knock new-code</code></dt><dd class="text-muted">Cut everyone off with a fresh code</dd>
+            </dl>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- Relay -->
+    <section id="relay" class="scroll-mt-20 py-20 sm:py-28" aria-labelledby="relay-title">
+      <div class="wrap grid gap-10 lg:grid-cols-12 lg:gap-12">
+        <div class="lg:col-span-5">
+          <p class="eyebrow">Self-host the relay</p>
+          <h2 id="relay-title" class="h2 mt-2">Your relay, on your server.</h2>
+          <p class="lede">Knock connects through <code class="font-mono text-ink">knockd</code>, a small relay you run yourself. It passes knocks along and forwards bytes. It never runs a command.</p>
+          <p class="mt-4 leading-relaxed text-muted text-pretty">Sign-in is optional. Turn on GitHub or Google on your relay and knocks carry a verified name. Without it, people type a name and you see it marked <em>not verified</em>.</p>
+          <a href="https://github.com/idestis/knock/blob/main/docs/RELAY_SIGN_IN.md" class="mt-6 inline-flex items-center gap-1.5 font-semibold text-accent hover:underline">
+            Set up sign-in on your relay
+            <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </a>
+        </div>
+        <div class="min-w-0 lg:col-span-7">
+          <div class="term">
+            <div class="term-bar">
+              <span class="term-dot bg-[#ff5f57]" aria-hidden="true"></span><span class="term-dot bg-[#febc2e]" aria-hidden="true"></span><span class="term-dot bg-[#28c840]" aria-hidden="true"></span>
+              <span class="ml-2 text-xs font-medium text-term-dim">Run a relay</span>
+              <button type="button" class="copy ml-auto" data-copy='docker run -p 8787:8787 -e KNOCK_TOKEN_SECRET="$(openssl rand -base64 48)" ghcr.io/idestis/knock-relay:latest' aria-label="Copy the docker command">
+                <svg class="i-copy size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg>
+                <svg class="i-check size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+              </button>
+            </div>
+            <pre><code><span class="prompt">$ </span>docker run -p 8787:8787 \
+    -e KNOCK_TOKEN_SECRET="$(openssl rand -base64 48)" \
+    ghcr.io/idestis/knock-relay:latest</code></pre>
+          </div>
+          <p class="mt-4 text-sm leading-relaxed text-muted">Then point Knock at it in Settings, or set <code class="font-mono text-ink">relay.url</code> in <code class="font-mono text-ink">~/.knock/config.toml</code>. A Kubernetes manifest is in the repo.</p>
+
+          <div class="mt-8 rounded-2xl border border-line bg-sunken p-5">
+            <h3 class="font-semibold">Good to know before you rely on it</h3>
+            <ul class="mt-3 space-y-2 text-sm leading-relaxed text-muted">
+              <li class="flex gap-2"><span aria-hidden="true" class="mt-2 size-1.5 shrink-0 rounded-full bg-muted"></span>There's no end-to-end encryption yet. Session bytes pass through your relay's memory, which is one reason you run it yourself.</li>
+              <li class="flex gap-2"><span aria-hidden="true" class="mt-2 size-1.5 shrink-0 rounded-full bg-muted"></span>The relay keeps state in memory, so run one replica. If it restarts, knock again.</li>
+              <li class="flex gap-2"><span aria-hidden="true" class="mt-2 size-1.5 shrink-0 rounded-full bg-muted"></span>The shell runs as you. Knock grants nothing your user doesn't already have.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Closing CTA -->
+    <section class="pb-24" aria-labelledby="cta-title">
+      <div class="wrap">
+        <div class="relative overflow-hidden rounded-[2rem] bg-fill px-6 py-14 text-center text-white sm:px-12 sm:py-20">
+          <div aria-hidden="true" class="pointer-events-none absolute -top-24 -right-24 size-72 rounded-full bg-white/10"></div>
+          <div aria-hidden="true" class="pointer-events-none absolute -bottom-32 -left-20 size-80 rounded-full bg-white/5"></div>
+          <h2 id="cta-title" class="relative font-display text-3xl font-bold tracking-tight text-balance sm:text-4xl">Next time someone offers to help, give them a code.</h2>
+          <p class="relative mx-auto mt-4 max-w-xl text-lg text-white/85">You'll see the knock, and you decide.</p>
+          <div class="relative mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+            <a href="https://github.com/idestis/knock/releases/latest" class="btn bg-white text-[#0036c4] hover:bg-white/90">Download for Mac</a>
+            <a href="https://github.com/idestis/knock" class="btn border border-white/40 text-white hover:bg-white/10">View on GitHub</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="border-t border-line bg-surface">
+    <div class="wrap flex flex-col gap-4 py-10 text-sm text-muted sm:flex-row sm:items-center sm:justify-between">
+      <div class="flex items-center gap-2.5">
+        <img src="/favicon.svg" alt="" width="20" height="18" class="h-4 w-auto">
+        <span>Knock, knock. Who's there?</span>
+      </div>
+      <nav aria-label="Footer" class="flex flex-wrap gap-x-6 gap-y-2">
+        <a href="https://github.com/idestis/knock" class="hover:text-ink">GitHub</a>
+        <a href="https://github.com/idestis/knock/releases" class="hover:text-ink">Releases</a>
+        <a href="https://github.com/idestis/knock/blob/main/SECURITY.md" class="hover:text-ink">Security</a>
+        <a href="https://github.com/idestis/knock/blob/main/LICENSE" class="hover:text-ink">MIT License</a>
+      </nav>
+    </div>
+  </footer>
+
+  <p id="copy-status" class="sr-only" role="status" aria-live="polite"></p>
+</body>
+</html>
