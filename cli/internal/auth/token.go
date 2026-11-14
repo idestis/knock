@@ -53,11 +53,16 @@ func Load(origin string) (t Tokens, ok bool, err error) {
 		return t, false, errors.New("no relay to load a sign-in for")
 	}
 	s, err := keyring.Get(KeychainService, Account(origin))
-	if errors.Is(err, keyring.ErrNotFound) {
+	switch {
+	case errors.Is(err, keyring.ErrNotFound):
 		s, err = migrateLegacy(origin)
 		if s == "" && err == nil {
 			return t, false, nil
 		}
+	case err == nil:
+		// This relay has its own sign-in, so a leftover from an older build
+		// can't move here; drop it so it never moves to another relay.
+		_ = keyring.Delete(KeychainService, LegacyAccount)
 	}
 	if err != nil {
 		return t, false, fmt.Errorf("read the Keychain: %w", err)

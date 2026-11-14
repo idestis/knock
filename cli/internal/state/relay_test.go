@@ -237,8 +237,13 @@ func TestMigrationNeverOverwrites(t *testing.T) {
 	if d.DoorKey != mine.DoorKey {
 		t.Fatal("the legacy file replaced the relay's door")
 	}
-	if _, err := os.Stat(lp); err != nil {
-		t.Fatal("the legacy file should stay when the relay already has a door")
+	if _, err := os.Stat(lp); !os.IsNotExist(err) {
+		t.Fatal("a leftover legacy file should be deleted when the relay already has a door")
+	}
+	// So it can't move into the next relay the user points at.
+	b, _ := ForRelay("https://b.example")
+	if d, ok, _ := b.LoadDoor(); ok && d.DoorKey == "old" {
+		t.Fatal("the leftover legacy door moved into another relay")
 	}
 }
 

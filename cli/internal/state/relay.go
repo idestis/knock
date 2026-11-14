@@ -119,16 +119,23 @@ func (s Store) path(name string) string { return filepath.Join(s.Dir, name) }
 
 // migrate moves a file from an older build (~/.knock/<name>) into this
 // relay's folder when the relay has no file of that kind yet. It never
-// overwrites: if Knock.app moved it first, or the relay already has one,
-// there is nothing to do. It reports whether this call did the move.
+// overwrites: if Knock.app moved it first there is nothing to do. If the
+// relay already has its own file, the old one is deleted instead, so it
+// can't later move into some other relay's folder with this relay's door
+// key or hashes in it. It reports whether this call did the move.
 func (s Store) migrate(name string) (bool, error) {
-	dst := s.path(name)
-	if _, err := os.Lstat(dst); err == nil || !errors.Is(err, os.ErrNotExist) {
-		return false, nil
-	}
 	src, err := Path(name)
 	if err != nil {
 		return false, err
+	}
+	dst := s.path(name)
+	if _, err := os.Lstat(dst); err == nil || !errors.Is(err, os.ErrNotExist) {
+		if err == nil {
+			if err := os.Remove(src); err != nil && !errors.Is(err, os.ErrNotExist) {
+				return false, err
+			}
+		}
+		return false, nil
 	}
 	if _, err := os.Lstat(src); err != nil {
 		return false, nil

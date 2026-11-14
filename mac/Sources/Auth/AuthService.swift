@@ -58,9 +58,13 @@ final class AuthService: NSObject {
 
     private static func migrateLegacy(to relay: RelayOrigin) {
         let legacy = LegacyMigration.keychainAccount
-        guard let d = Keychain.read(legacy),
-              LegacyMigration.shouldMove(legacyExists: true, currentExists: Keychain.read(relay.keychainAccount) != nil) else { return }
-        if Keychain.save(relay.keychainAccount, d) { Keychain.delete(legacy) }
+        guard let d = Keychain.read(legacy) else { return }
+        let currentExists = Keychain.read(relay.keychainAccount) != nil
+        if LegacyMigration.shouldDelete(legacyExists: true, currentExists: currentExists) {
+            Keychain.delete(legacy)
+        } else if Keychain.save(relay.keychainAccount, d) {
+            Keychain.delete(legacy)
+        }
     }
 
     var user: Identity? { session?.user }

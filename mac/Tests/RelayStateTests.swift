@@ -97,6 +97,9 @@ import Testing
         #expect(LegacyMigration.shouldMove(legacyExists: true, currentExists: false))
         #expect(!LegacyMigration.shouldMove(legacyExists: true, currentExists: true))
         #expect(!LegacyMigration.shouldMove(legacyExists: false, currentExists: false))
+        #expect(LegacyMigration.shouldDelete(legacyExists: true, currentExists: true))
+        #expect(!LegacyMigration.shouldDelete(legacyExists: true, currentExists: false))
+        #expect(!LegacyMigration.shouldDelete(legacyExists: false, currentExists: true))
         #expect(!LegacyMigration.shouldMove(legacyExists: false, currentExists: true))
     }
 
@@ -143,7 +146,11 @@ import Testing
         LegacyMigration.migrateFiles(to: relay, root: root)
 
         #expect(DoorFile.load(relay: relay, root: root)?.doorId == "kq7m")
-        #expect(FileManager.default.fileExists(atPath: root.appendingPathComponent("door.json").path))
+        // The leftover is deleted, so it can't move into the next relay the user picks.
+        #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent("door.json").path))
+        let other = RelayOrigin("https://knock.example.com")!
+        LegacyMigration.migrateFiles(to: other, root: root)
+        #expect(DoorFile.load(relay: other, root: root) == nil)
     }
 
     @Test func anotherRelayDoesNotSeeThisOnesDoor() throws {

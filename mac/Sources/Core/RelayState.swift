@@ -65,6 +65,9 @@ nonisolated enum LegacyMigration {
 
     /// A legacy item moves only when it exists and the current relay has none of its own yet.
     static func shouldMove(legacyExists: Bool, currentExists: Bool) -> Bool { legacyExists && !currentExists }
+    /// A legacy item next to the relay's own is deleted, so it can't later move into another
+    /// relay's folder carrying this relay's door key, hashes or sign-in.
+    static func shouldDelete(legacyExists: Bool, currentExists: Bool) -> Bool { legacyExists && currentExists }
 
     /// Moves ~/.knock/door.json and recent.json into the relay's folder, stamping door.json
     /// with the relay's origin. Idempotent, and safe if the CLI does the same at once: each
@@ -74,9 +77,12 @@ nonisolated enum LegacyMigration {
         let dir = LocalState.relayDirectory(relay, root: root)
         for name in files {
             let legacy = root.appendingPathComponent(name), current = dir.appendingPathComponent(name)
-            guard shouldMove(legacyExists: fm.fileExists(atPath: legacy.path), currentExists: fm.fileExists(atPath: current.path)) else {
+            let legacyExists = fm.fileExists(atPath: legacy.path), currentExists = fm.fileExists(atPath: current.path)
+            if shouldDelete(legacyExists: legacyExists, currentExists: currentExists) {
+                try? fm.removeItem(at: legacy)
                 continue
             }
+            guard shouldMove(legacyExists: legacyExists, currentExists: currentExists) else { continue }
             LocalState.ensureDirectory(dir, root: root)
             guard renamex_np(legacy.path, current.path, UInt32(RENAME_EXCL)) == 0 else { continue } // the other client won
             try? fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: current.path)

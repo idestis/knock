@@ -241,6 +241,21 @@ func TestLegacySignInMoves(t *testing.T) {
 	if got, _, _ := Load(o); got.AccessToken != "at-app" {
 		t.Fatalf("the app's newer sign-in was replaced: %+v", got)
 	}
+
+	// A leftover legacy sign-in next to the relay's own is dropped, so it
+	// never moves to the next relay the user points at.
+	keyring.MockInit()
+	_ = keyring.Set(KeychainService, Account(o), `{"access_token":"at-mine","refresh_token":"rt-mine"}`)
+	_ = keyring.Set(KeychainService, LegacyAccount, legacy)
+	if got, _, _ := Load(o); got.AccessToken != "at-mine" {
+		t.Fatalf("the relay's own sign-in was replaced: %+v", got)
+	}
+	if _, err := keyring.Get(KeychainService, LegacyAccount); err == nil {
+		t.Fatal("the leftover legacy sign-in should be deleted")
+	}
+	if _, ok, _ := Load(origin("https://other.example")); ok {
+		t.Fatal("the leftover sign-in moved to another relay")
+	}
 }
 
 func TestDescribe(t *testing.T) {
