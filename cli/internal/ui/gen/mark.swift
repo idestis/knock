@@ -2,10 +2,10 @@
 // Run from the repo root: swift cli/internal/ui/gen/mark.swift > cli/internal/ui/mark_grid.go
 import AppKit
 
-let W = 30
+let W = 16
 let svg = NSImage(contentsOfFile: "design/logo/knock-mark.svg")!
 let H = Int((Double(W) * svg.size.height / svg.size.width).rounded()) / 2 * 2 // even: two pixels per text row
-let scale = 8
+let scale = 16
 let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: W * scale, pixelsHigh: H * scale, bitsPerSample: 8,
                            samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
 NSGraphicsContext.saveGraphicsState()
@@ -22,7 +22,7 @@ for y in 0..<H {
         for sy in 0..<scale { for sx in 0..<scale {
             if (rep.colorAt(x: x * scale + sx, y: y * scale + sy)?.alphaComponent ?? 0) > 0.5 { covered += 1 }
         } }
-        row += covered * 100 / (scale * scale) >= 45 ? "#" : "."
+        row += covered * 100 / (scale * scale) >= 50 ? "#" : "."
     }
     rows.append(row)
 }

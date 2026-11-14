@@ -33,21 +33,23 @@ var (
 )
 
 // Say prints a line.
-func Say(format string, a ...any) { _, _ = lipgloss.Fprintln(Out, fmt.Sprintf(format, a...)) }
+func Say(format string, a ...any) { _, _ = fmt.Fprintln(Out, fmt.Sprintf(format, a...)) }
 
 // Note prints a dim line.
 func Note(format string, a ...any) {
-	_, _ = lipgloss.Fprintln(Out, Dim.Render(fmt.Sprintf(format, a...)))
+	_, _ = fmt.Fprintln(Out, Dim.Render(fmt.Sprintf(format, a...)))
 }
 
 // Warning prints a yellow line to stderr.
 func Warning(format string, a ...any) {
-	_, _ = lipgloss.Fprintln(Err, Warn.Render("! "+fmt.Sprintf(format, a...)))
+	_, _ = fmt.Fprintln(Err, Warn.Render("! "+fmt.Sprintf(format, a...)))
 }
 
 // Failure prints a red line to stderr.
-func Failure(msg string) { _, _ = lipgloss.Fprintln(Err, Bad.Render(msg)) }
+func Failure(msg string) { _, _ = fmt.Fprintln(Err, Bad.Render(msg)) }
 
-// Print writes pre-rendered text through Lip Gloss, which downsamples colour
-// for the terminal.
-func Print(s string) { _, _ = lipgloss.Fprintln(Out, s) }
+// Print writes pre-rendered text. Out is a colorprofile writer, which
+// downsamples colour for the terminal it detects (and strips it for pipes).
+// Don't route through lipgloss.Fprintln here: it treats the wrapper as a
+// non-terminal and drops every colour.
+func Print(s string) { _, _ = fmt.Fprintln(Out, s) }
