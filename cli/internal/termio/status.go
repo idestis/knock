@@ -2,6 +2,7 @@ package termio
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/charmbracelet/x/ansi"
@@ -11,7 +12,7 @@ import (
 // a scroll region the PTY draws into.
 type StatusLine struct {
 	t    *Terminal
-	rows int
+	rows int // the status line sits on this row
 	cols int
 	on   bool
 }
@@ -45,6 +46,41 @@ func (s *StatusLine) Resize(cols, rows int) int {
 	return rows - 1
 }
 
+// Fit is for a guest mirroring a host PTY of contentRows rows. The scroll
+// region becomes exactly those rows (or as many as fit) and the status line
+// sits right under it, so the host's cursor moves and scrolling land on the
+// same rows they do on the host. Rows below the status line are cleared.
+func (s *StatusLine) Fit(cols, termRows, contentRows int) {
+	s.cols = cols
+	if termRows < 3 {
+		s.on, s.rows = false, termRows
+		return
+	}
+	region := termRows - 1
+	if contentRows > 0 && contentRows < region {
+		region = contentRows
+	}
+	s.on, s.rows = true, region+1
+	// DECSTBM homes the cursor, so save and restore around it; then clear
+	// everything below the status row so stale output doesn't linger there.
+	s.t.Printf("\x1b7\x1b[1;%dr\x1b[%d;1H\x1b[J\x1b8", region, region+1)
+}
+
+// ContentRows is how many rows the mirrored program may scroll in.
+func (s *StatusLine) ContentRows() int {
+	if !s.on {
+		return s.rows
+	}
+	return s.rows - 1
+}
+
+// Reassert puts the scroll region back after the mirrored program reset it.
+func (s *StatusLine) Reassert() {
+	if s.on {
+		s.t.Printf("\x1b7\x1b[1;%dr\x1b8", s.rows-1)
+	}
+}
+
 // Draw paints text (which may hold ANSI styles) on the bottom row.
 func (s *StatusLine) Draw(text string) {
 	if !s.on {
@@ -73,4 +109,34 @@ func Elapsed(secs int) string {
 		return fmt.Sprintf("%d:%02d:%02d", secs/3600, secs/60%60, secs%60)
 	}
 	return fmt.Sprintf("%02d:%02d", secs/60, secs%60)
+}
+
+// ResetsScrollRegion reports whether b holds a DECSTBM (CSI [top;bottom] r)
+// whose bottom is missing or below row maxRow. A full-screen program sends
+// "CSI r" to reset to the whole screen, which on the guest would scroll the
+// status line away; a region inside maxRow (vim, less) is left alone.
+// A sequence split across two chunks is missed; the next one catches up.
+func ResetsScrollRegion(b []byte, maxRow int) bool {
+	for i := 0; i+1 < len(b); i++ {
+		if b[i] != 0x1b || b[i+1] != '[' {
+			continue
+		}
+		j := i + 2
+		for j < len(b) && (b[j] >= '0' && b[j] <= '9' || b[j] == ';') {
+			j++
+		}
+		if j >= len(b) || b[j] != 'r' {
+			continue
+		}
+		params := string(b[i+2 : j])
+		semi := strings.LastIndexByte(params, ';')
+		if semi < 0 {
+			return true // no bottom: the whole screen
+		}
+		bottom, err := strconv.Atoi(params[semi+1:])
+		if err != nil || bottom > maxRow {
+			return true
+		}
+	}
+	return false
 }

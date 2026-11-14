@@ -24,3 +24,14 @@ func TestEscaper(t *testing.T) {
 		t.Fatalf("got %+v", got)
 	}
 }
+
+func TestResetsScrollRegion(t *testing.T) {
+	for in, want := range map[string]bool{
+		"\x1b[r": true, "\x1b[1;40r": true, "\x1b[1;24r": false, "\x1b[5r": true,
+		"ls\r\n": false, "\x1b[2J\x1b[H": false, "\x1b[?25h": false, "\x1b[3;4H r": false,
+	} {
+		if got := ResetsScrollRegion([]byte(in), 28); got != want {
+			t.Errorf("%q: got %v, want %v", in, got, want)
+		}
+	}
+}

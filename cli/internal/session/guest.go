@@ -31,12 +31,13 @@ func (g *Guest) Run(ctx context.Context) Result {
 
 	status := termio.NewStatusLine(t)
 	cols, rows := t.Size()
-	status.Setup(cols, rows)
+	hostCols, hostRows := g.Start.Cols, g.Start.Rows
+	t.Printf("\x1b[2J\x1b[H")
+	status.Fit(cols, rows, hostRows)
 
 	started := time.Now()
 	res := Result{}
 	peer := peerFirstName(g.Start.Peer)
-	hostCols, hostRows := g.Start.Cols, g.Start.Rows
 	canType := g.Start.GuestInput
 
 	var notice string
@@ -118,7 +119,7 @@ func (g *Guest) Run(ctx context.Context) Result {
 			draw()
 		case <-g.Resize:
 			cols, rows = t.Size()
-			status.Resize(cols, rows)
+			status.Fit(cols, rows, hostRows)
 			draw()
 		case b, ok := <-input:
 			if !ok {
@@ -138,6 +139,9 @@ func (g *Guest) Run(ctx context.Context) Result {
 			}
 		case b := <-g.Data:
 			_, _ = t.Write(b)
+			if termio.ResetsScrollRegion(b, status.ContentRows()) {
+				status.Reassert()
+			}
 			if rec != nil {
 				rec.Cast.Output(b)
 			}
@@ -147,6 +151,7 @@ func (g *Guest) Run(ctx context.Context) Result {
 				var sr protocol.SessionResize
 				if ev.Decode(&sr) == nil {
 					hostCols, hostRows = sr.Cols, sr.Rows
+					status.Fit(cols, rows, hostRows)
 					if rec != nil {
 						rec.Cast.Resize(sr.Cols, sr.Rows)
 					}
