@@ -60,6 +60,7 @@ retention_days = 7
 
 [guest]
 input = 'view-only'
+verified_only = true
 
 [knock]
 notch = false
@@ -76,7 +77,7 @@ thing = 1
 		t.Fatal(err)
 	}
 	if c.SessionsSave != SaveOutputInput || c.SessionsDir != "/tmp/knock-rec" || c.RetentionDays != 7 ||
-		c.GuestInput != "view-only" || c.KnockNotch || c.KnockTimeout != 30 || c.ShellCommand != "/bin/zsh -l" {
+		c.GuestInput != "view-only" || !c.GuestVerifiedOnly || c.KnockNotch || c.KnockTimeout != 30 || c.ShellCommand != "/bin/zsh -l" {
 		t.Fatalf("unexpected config %+v", c)
 	}
 	if len(c.UnknownKeys) != 1 || c.UnknownKeys[0] != "extra.thing" {
@@ -92,7 +93,7 @@ func TestDefaultsAndRoles(t *testing.T) {
 	if c.SaveMode("host") != SaveOutput || c.SaveMode("guest") != SaveOff {
 		t.Fatalf("role defaults wrong: %q %q", c.SaveMode("host"), c.SaveMode("guest"))
 	}
-	if c.RetentionDays != 30 || c.GuestInput != "allow" || !strings.HasSuffix(c.SessionsDir, filepath.Join(".knock", "sessions")) {
+	if c.RetentionDays != 30 || c.GuestInput != "allow" || c.GuestVerifiedOnly || !strings.HasSuffix(c.SessionsDir, filepath.Join(".knock", "sessions")) {
 		t.Fatalf("defaults wrong %+v", c)
 	}
 }
@@ -101,6 +102,7 @@ func TestBadValues(t *testing.T) {
 	for _, body := range []string{
 		"[sessions]\nsave = \"everything\"\n",
 		"[guest]\ninput = \"maybe\"\n",
+		"[guest]\nverified_only = \"yes\"\n",
 		"[relay]\nurl = \"relay.example\"\n",
 		"[relay]\nurl = \"unterminated\n",
 		"just words\n",

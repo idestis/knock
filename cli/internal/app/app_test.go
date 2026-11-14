@@ -3,6 +3,9 @@ package app
 import (
 	"slices"
 	"testing"
+
+	"github.com/idestis/knock/cli/internal/config"
+	"github.com/idestis/knock/protocol"
 )
 
 func TestExtractRelay(t *testing.T) {
@@ -30,5 +33,18 @@ func TestExtractRelay(t *testing.T) {
 func TestSentence(t *testing.T) {
 	if got := sentence("can't reach the relay"); got != "Can't reach the relay." {
 		t.Fatalf("got %q", got)
+	}
+}
+
+func TestTurnAwayOnlyDeclinesUnverified(t *testing.T) {
+	anon := protocol.KnockIncoming{From: protocol.Identity{Name: "Sam", Verified: false}}
+	signed := protocol.KnockIncoming{From: protocol.Identity{Name: "Sam", Verified: true}}
+	on := config.Config{GuestVerifiedOnly: true}
+	off := config.Config{}
+	if !turnAway(on, anon) {
+		t.Error("an unverified knock should be turned away when verified_only is on")
+	}
+	if turnAway(on, signed) || turnAway(off, anon) || turnAway(off, signed) {
+		t.Error("only unverified knocks with verified_only on are turned away")
 	}
 }

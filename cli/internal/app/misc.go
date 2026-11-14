@@ -72,6 +72,7 @@ func runConfig(cfg config.Config, args []string) error {
 		{"sessions.dir", cfg.SessionsDir},
 		{"sessions.retention_days", fmt.Sprint(cfg.RetentionDays)},
 		{"guest.input", cfg.GuestInput},
+		{"guest.verified_only", fmt.Sprint(cfg.GuestVerifiedOnly)},
 		{"knock.timeout_seconds", fmt.Sprint(cfg.KnockTimeout)},
 		{"knock.notch", fmt.Sprint(cfg.KnockNotch) + ui.Dim.Render("  (Knock.app only)")},
 		{"shell.command", shell},
