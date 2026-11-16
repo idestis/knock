@@ -7,6 +7,8 @@ import os
 final class RelayClient {
     enum State: Equatable {
         case idle, connecting, connected, offline(String)
+        /// Reachable, but it refuses anonymous use until this device signs in.
+        case signInRequired
     }
 
     var onState: (State) -> Void = { _ in }
@@ -136,11 +138,14 @@ final class RelayClient {
         guard gen == generation else { return }
         let msg = (error as? WireError)?.text ?? "Can't reach the relay."
         teardown(reason: msg)
-        state = .offline(msg)
+        // The relay answered and refused an anonymous hello: it's reachable, it just needs sign-in.
+        // Don't retry on a timer; signing in calls reconnect().
+        let needsSignIn = (error as? WireError)?.code == WireError.anonymousNotAllowed
+        state = needsSignIn ? .signInRequired : .offline(msg)
         if let e = error as? WireError, e.code == WireError.unauthorised || e.code == WireError.anonymousNotAllowed {
             onEvent(Envelope(type: MessageType.error, id: nil, data: nil, error: e))
         }
-        guard url != nil else { return }
+        guard url != nil, !needsSignIn else { return }
         let delay = backoff
         backoff = min(backoff * 2, 30)
         let next = generation

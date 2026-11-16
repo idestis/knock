@@ -135,6 +135,7 @@ struct TrayMenu: View {
         case .connected: return model.isOpen ? "Open to knocks" : "Door closed"
         case .connecting: return "Connecting…"
         case .offline(let m): return m
+        case .signInRequired: return "Sign in to use this relay"
         case .idle: return "Not connected"
         }
     }

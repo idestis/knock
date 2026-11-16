@@ -353,6 +353,7 @@ struct ConnectionBadge: View {
         switch model.connection {
         case .connected: .green
         case .connecting: .yellow
+        case .signInRequired: .orange
         default: .red
         }
     }
@@ -363,11 +364,13 @@ struct ConnectionBadge: View {
         case .connecting: "Connecting…"
         case .idle: "Not connected"
         case .offline: "Offline"
+        case .signInRequired: "Sign in required"
         }
     }
 
     private var help: String {
         if case .offline(let m) = model.connection { return m }
+        if model.connection == .signInRequired { return "The relay is up and only lets signed-in people in." }
         return model.settings.relayURLString
     }
 }
