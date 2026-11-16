@@ -127,7 +127,7 @@ final class RelayClient {
             while gen == self.generation {
                 try? await Task.sleep(for: .seconds(20))
                 guard gen == self.generation else { return }
-                t.sendPing { _ in }
+                t.sendPing { @Sendable _ in }  // called off the main thread; see AuthService.signIn
             }
         }
     }

@@ -127,7 +127,9 @@ final class AuthService: NSObject {
                         .init(name: "code_challenge", value: challenge), .init(name: "code_challenge_method", value: "S256")]
 
         let callback: URL = try await withCheckedThrowingContinuation { cont in
-            let ws = ASWebAuthenticationSession(url: c.url!, callback: .customScheme("knock")) { url, error in
+            let ws = ASWebAuthenticationSession(url: c.url!, callback: .customScheme("knock")) { @Sendable url, error in
+                // @Sendable: AuthenticationServices calls this off the main thread; a main-actor
+                // closure (the module default) traps there. Only the Sendable continuation is used.
                 if let url { cont.resume(returning: url) } else {
                     let cancelled = (error as? ASWebAuthenticationSessionError)?.code == .canceledLogin
                     cont.resume(throwing: cancelled ? AuthError.cancelled : AuthError.failed(error?.localizedDescription ?? "Sign-in failed."))
